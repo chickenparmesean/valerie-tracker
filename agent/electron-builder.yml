@@ -1,0 +1,25 @@
+appId: com.hirevalerie.tracker
+productName: Valerie Tracker
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - "dist-main/**/*"
+  - "dist-renderer/**/*"
+  - "dist-preload/**/*"
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+electronLanguages: [en]
+publish:
+  provider: generic
+  url: https://valerie-tracker-updates.s3.amazonaws.com
