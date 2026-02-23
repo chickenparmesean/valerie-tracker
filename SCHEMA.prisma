@@ -1,0 +1,247 @@
+// Valerie Tracker — Prisma Schema
+// Separate Supabase project from va-platform
+// All tables are new — no overlap with HireValerie schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  ADMIN       // Platform admin (you)
+  CLIENT      // Company/client who hires VAs
+  MANAGER     // Client team lead (can manage VAs but not billing)
+  VA          // Virtual assistant (tracked user)
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+enum TimeEntryStatus {
+  RUNNING     // Timer currently active
+  STOPPED     // Timer stopped normally
+  IDLE_PAUSED // Paused by idle detection
+  SYNCED      // Confirmed synced to server
+}
+
+enum MembershipStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+// ============================================
+// CORE MODELS
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  avatarUrl     String?
+  supabaseId    String    @unique // Supabase Auth UUID
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  memberships   Membership[]
+  timeEntries   TimeEntry[]
+  screenshots   Screenshot[]
+  activitySnaps ActivitySnapshot[]
+  windowSamples WindowSample[]
+  taskAssignees TaskAssignment[]
+}
+
+model Organization {
+  id              String    @id @default(cuid())
+  name            String
+  timezone        String    @default("UTC")
+  screenshotFreq  Int       @default(1)   // screenshots per 10-min interval (1, 2, or 3)
+  idleTimeoutMin  Int       @default(5)   // minutes before idle prompt
+  trackUrls       Boolean   @default(true)
+  trackApps       Boolean   @default(true)
+  blurScreenshots Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  members         Membership[]
+  projects        Project[]
+}
+
+model Membership {
+  id            String           @id @default(cuid())
+  role          UserRole
+  status        MembershipStatus @default(ACTIVE)
+  weeklyLimitHrs Float?          // optional weekly hour cap
+  payRate       Float?           // $/hr paid to VA
+  billRate      Float?           // $/hr billed to client
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  userId        String
+  user          User             @relation(fields: [userId], references: [id])
+  orgId         String
+  organization  Organization     @relation(fields: [orgId], references: [id])
+
+  @@unique([userId, orgId])
+  @@index([orgId, role])
+}
+
+// ============================================
+// PROJECTS & TASKS
+// ============================================
+
+model Project {
+  id            String        @id @default(cuid())
+  name          String
+  description   String?
+  status        ProjectStatus @default(ACTIVE)
+  requireTask   Boolean       @default(false) // if true, VA must select a task to track
+  color         String?       // hex color for UI
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  orgId         String
+  organization  Organization  @relation(fields: [orgId], references: [id])
+  tasks         Task[]
+  timeEntries   TimeEntry[]
+
+  @@index([orgId, status])
+}
+
+model Task {
+  id            String     @id @default(cuid())
+  title         String
+  description   String?
+  status        TaskStatus @default(OPEN)
+  sortOrder     Int        @default(0)
+  isRecurring   Boolean    @default(false) // repeating task flag
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  projectId     String
+  project       Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  assignees     TaskAssignment[]
+  timeEntries   TimeEntry[]
+
+  @@index([projectId, status])
+}
+
+model TaskAssignment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId])
+}
+
+// ============================================
+// TIME TRACKING
+// ============================================
+
+model TimeEntry {
+  id              String          @id @default(cuid())
+  startedAt       DateTime
+  stoppedAt       DateTime?
+  durationSec     Int?            // computed on stop: stoppedAt - startedAt in seconds
+  activeSec       Int?            // total active seconds within this entry
+  idleSec         Int?            // total idle seconds within this entry
+  activityPct     Int?            // overall activity percentage (0-100)
+  status          TimeEntryStatus @default(RUNNING)
+  note            String?
+  idempotencyKey  String          @unique // agent-generated UUID for dedup
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  projectId       String
+  project         Project         @relation(fields: [projectId], references: [id])
+  taskId          String?         // nullable = "no task" tracking allowed
+  task            Task?           @relation(fields: [taskId], references: [id])
+
+  activitySnaps   ActivitySnapshot[]
+  screenshots     Screenshot[]
+  windowSamples   WindowSample[]
+
+  @@index([userId, startedAt])
+  @@index([projectId, startedAt])
+  @@index([userId, status])
+}
+
+model ActivitySnapshot {
+  id            String    @id @default(cuid())
+  timestamp     DateTime
+  intervalSec   Int       @default(60) // length of this snapshot window (usually 60s)
+  activityPct   Int       // 0-100 overall
+  keyboardPct   Int?      // 0-100 keyboard only
+  mousePct      Int?      // 0-100 mouse only
+  idempotencyKey String   @unique
+
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  timeEntryId   String
+  timeEntry     TimeEntry @relation(fields: [timeEntryId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+  @@index([timeEntryId, timestamp])
+}
+
+model Screenshot {
+  id              String    @id @default(cuid())
+  capturedAt      DateTime
+  storageUrl      String    // Supabase Storage URL
+  storagePath     String    // path within bucket for deletion
+  activityPct     Int?      // activity % at time of capture
+  activeApp       String?   // app name at time of capture
+  activeTitle     String?   // window title at time of capture
+  fileSizeBytes   Int?
+  deletedByUser   Boolean   @default(false)
+  deletedAt       DateTime?
+  idempotencyKey  String    @unique
+
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  timeEntryId     String
+  timeEntry       TimeEntry @relation(fields: [timeEntryId], references: [id], onDelete: Cascade)
+
+  @@index([userId, capturedAt])
+  @@index([timeEntryId, capturedAt])
+}
+
+model WindowSample {
+  id            String    @id @default(cuid())
+  timestamp     DateTime
+  appName       String    // e.g. "Google Chrome", "Microsoft Word"
+  windowTitle   String?   // e.g. "Gmail - Inbox", "Document1.docx"
+  processPath   String?   // full exe path
+  durationSec   Int       // seconds spent on this app in this sample
+  idempotencyKey String   @unique
+
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  timeEntryId   String
+  timeEntry     TimeEntry @relation(fields: [timeEntryId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+  @@index([timeEntryId, timestamp])
+}

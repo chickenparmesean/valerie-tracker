@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  ADMIN
+  CLIENT
+  MANAGER
+  VA
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+enum TimeEntryStatus {
+  RUNNING
+  STOPPED
+  IDLE_PAUSED
+  SYNCED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  avatarUrl     String?
+  supabaseId    String    @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  memberships   Membership[]
+  timeEntries   TimeEntry[]
+  screenshots   Screenshot[]
+  activitySnaps ActivitySnapshot[]
+  windowSamples WindowSample[]
+  taskAssignees TaskAssignment[]
+}
+
+model Organization {
+  id              String    @id @default(cuid())
+  name            String
+  timezone        String    @default("UTC")
+  screenshotFreq  Int       @default(1)
+  idleTimeoutMin  Int       @default(5)
+  trackUrls       Boolean   @default(true)
+  trackApps       Boolean   @default(true)
+  blurScreenshots Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  members         Membership[]
+  projects        Project[]
+}
+
+model Membership {
+  id            String           @id @default(cuid())
+  role          UserRole
+  status        MembershipStatus @default(ACTIVE)
+  weeklyLimitHrs Float?
+  payRate       Float?
+  billRate      Float?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  userId        String
+  user          User             @relation(fields: [userId], references: [id])
+  orgId         String
+  organization  Organization     @relation(fields: [orgId], references: [id])
+
+  @@unique([userId, orgId])
+  @@index([orgId, role])
+}
+
+model Project {
+  id            String        @id @default(cuid())
+  name          String
+  description   String?
+  status        ProjectStatus @default(ACTIVE)
+  requireTask   Boolean       @default(false)
+  color         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  orgId         String
+  organization  Organization  @relation(fields: [orgId], references: [id])
+  tasks         Task[]
+  timeEntries   TimeEntry[]
+
+  @@index([orgId, status])
+}
+
+model Task {
+  id            String     @id @default(cuid())
+  title         String
+  description   String?
+  status        TaskStatus @default(OPEN)
+  sortOrder     Int        @default(0)
+  isRecurring   Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  projectId     String
+  project       Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  assignees     TaskAssignment[]
+  timeEntries   TimeEntry[]
+
+  @@index([projectId, status])
+}
+
+model TaskAssignment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId])
+}
+
+model TimeEntry {
+  id              String          @id @default(cuid())
+  startedAt       DateTime
+  stoppedAt       DateTime?
+  durationSec     Int?
+  activeSec       Int?
+  idleSec         Int?
+  activityPct     Int?
+  status          TimeEntryStatus @default(RUNNING)
+  note            String?
+  idempotencyKey  String          @unique
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  projectId       String
+  project         Project         @relation(fields: [projectId], references: [id])
+  taskId          String?
+  task            Task?           @relation(fields: [taskId], references: [id])
+
+  activitySnaps   ActivitySnapshot[]
+  screenshots     Screenshot[]
+  windowSamples   WindowSample[]
+
+  @@index([userId, startedAt])
+  @@index([projectId, startedAt])
+  @@index([userId, status])
+}
+
+model ActivitySnapshot {
+  id            String    @id @default(cuid())
+  timestamp     DateTime
+  intervalSec   Int       @default(60)
+  activityPct   Int
+  keyboardPct   Int?
+  mousePct      Int?
+  idempotencyKey String   @unique
+
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  timeEntryId   String
+  timeEntry     TimeEntry @relation(fields: [timeEntryId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+  @@index([timeEntryId, timestamp])
+}
+
+model Screenshot {
+  id              String    @id @default(cuid())
+  capturedAt      DateTime
+  storageUrl      String
+  storagePath     String
+  activityPct     Int?
+  activeApp       String?
+  activeTitle     String?
+  fileSizeBytes   Int?
+  deletedByUser   Boolean   @default(false)
+  deletedAt       DateTime?
+  idempotencyKey  String    @unique
+
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  timeEntryId     String
+  timeEntry       TimeEntry @relation(fields: [timeEntryId], references: [id], onDelete: Cascade)
+
+  @@index([userId, capturedAt])
+  @@index([timeEntryId, capturedAt])
+}
+
+model WindowSample {
+  id            String    @id @default(cuid())
+  timestamp     DateTime
+  appName       String
+  windowTitle   String?
+  processPath   String?
+  durationSec   Int
+  idempotencyKey String   @unique
+
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  timeEntryId   String
+  timeEntry     TimeEntry @relation(fields: [timeEntryId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+  @@index([timeEntryId, timestamp])
+}

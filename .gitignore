@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-main/
+dist-renderer/
+dist-preload/
+.next/
+*.db
+*.db-journal
+.env
+.env.local
+out/
+*.exe
+*.ico
+.turbo/

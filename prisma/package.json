@@ -1,0 +1,9 @@
+{
+  "name": "prisma-config",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "prisma": "^6.4.0",
+    "@prisma/client": "^6.4.0"
+  }
+}
