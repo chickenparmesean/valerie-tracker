@@ -1,5 +1,18 @@
-import { app, BrowserWindow } from 'electron';
 import path from 'path';
+import { config as dotenvConfig } from 'dotenv';
+
+// Load .env before any module reads process.env
+const envPaths = [
+  path.resolve(__dirname, '..', '..', '.env'),       // from agent/dist-main/
+  path.resolve(__dirname, '..', '..', '..', '.env'),  // fallback
+  path.resolve(process.cwd(), '.env'),                // from wherever npm run dev is called
+];
+for (const envPath of envPaths) {
+  const result = dotenvConfig({ path: envPath });
+  if (!result.error) break;
+}
+
+import { app, BrowserWindow } from 'electron';
 import { initDatabase } from './database';
 import { initAuth, restoreSession, startAutoRefresh } from './auth';
 import { registerIpcHandlers } from './ipc';
