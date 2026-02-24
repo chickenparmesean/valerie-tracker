@@ -4,6 +4,7 @@
   "private": true,
   "main": "dist-main/index.js",
   "scripts": {
+    "postinstall": "electron-rebuild",
     "dev": "concurrently \"vite\" \"tsc -p tsconfig.main.json --watch\" \"wait-on dist-main/index.js && electron .\"",
     "build": "vite build && tsc -p tsconfig.main.json && tsc -p tsconfig.preload.json",
     "build:agent": "npm run build && electron-builder --win",
@@ -19,19 +20,19 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@types/better-sqlite3": "^7.6.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "concurrently": "^9.1.0",
     "electron": "^34.0.0",
     "electron-builder": "^25.1.0",
-    "electron-rebuild": "^3.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.7.0",
     "vite": "^6.1.0",
-    "wait-on": "^8.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "wait-on": "^8.0.0"
   }
 }
