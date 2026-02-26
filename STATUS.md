@@ -1,6 +1,6 @@
 # Valerie Tracker -- Build Status
 
-Last updated: 2025-02-23
+Last updated: 2026-02-26
 Branch: staging (8 commits)
 
 ## Overall Status: MVP COMPLETE -- Ready for Testing
@@ -64,21 +64,9 @@ All 12 routes implemented with JWT auth, Zod validation, and proper error handli
 **Renderer screens:** LoginScreen, MainScreen (project list + timer), IdleDialog
 **Preload:** contextBridge with typed API (auth, timer, projects, activity, screenshots, idle)
 
-## Phase 4: Web Dashboard -- DONE
+## Phase 4: Web Dashboard -- REMOVED
 
-9 pages, 9 UI components, 3 layout components. Next.js build passes.
-
-**Pages:**
-- Login (split layout, Supabase auth)
-- Dashboard (live overview with stat cards + VA table)
-- VAs list, VA detail, VA screenshots
-- Projects list, Project detail
-- Settings
-
-**UI Components:** Button, Badge, StatCard, ProductivityBar, LiveDot, Avatar, Card, Input, EmptyState
-**Layout:** DashboardLayout, Sidebar (240px navy), PageHeader
-
-**Design system:** DM Serif Display headings, DM Sans body, JetBrains Mono mono. Navy (#1A1A2E) sidebar, gold (#C9A84C) accents, 4px border-radius.
+Dashboard UI stripped from web/ -- production dashboard lives in va-platform repo. The web/ folder is now a headless API server only.
 
 ## Phase 5: Packaging Config -- DONE
 
@@ -90,7 +78,6 @@ All 12 routes implemented with JWT auth, Zod validation, and proper error handli
 - [x] README.md with setup instructions and API reference
 - [x] Environment variable configuration for all workspaces
 - [x] Supabase clients: server (service role), browser (anon key), agent (anon key)
-- [x] Realtime subscription hook (useRealtimeSubscription)
 
 ---
 
@@ -125,13 +112,10 @@ valerie-tracker/
     schema.prisma           -- 10 models, 5 enums
 
   web/src/
-    app/api/                -- 12 API routes (11 route files)
-    app/(auth)/             -- login page
-    app/(dashboard)/        -- 8 dashboard pages + layout
-    components/layout/      -- DashboardLayout, Sidebar, PageHeader
-    components/ui/          -- 9 UI components
-    lib/                    -- auth, prisma, supabase-server, supabase-browser
-    hooks/                  -- useRealtimeSubscription
+    app/api/                -- 11 route files (KEPT)
+    app/layout.tsx          -- bare skeleton
+    app/page.tsx            -- API stub
+    lib/                    -- auth.ts, prisma.ts, supabase-server.ts, supabase-browser.ts (KEPT)
 
   agent/src/
     main/                   -- 13 modules (entry, config, auth, db, timer, activity,
@@ -150,3 +134,4 @@ valerie-tracker/
 3. **Production deployment:** Web app not yet deployed (Vercel recommended).
 4. **Supabase Storage bucket:** Must be created manually in Supabase dashboard (name: "screenshots", private).
 5. **Auto-updater:** electron-updater dependency present but not configured with a publish target.
+6. **Dashboard UI stripped** per INTEGRATION-GUIDE.md -- production dashboard lives in va-platform repo.
