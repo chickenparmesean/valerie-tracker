@@ -1,5 +1,8 @@
-import { redirect } from 'next/navigation';
-
 export default function Home() {
-  redirect('/login');
+  return (
+    <div>
+      <h1>Valerie Tracker API</h1>
+      <p>API server is running. No UI is served from this application.</p>
+    </div>
+  );
 }
