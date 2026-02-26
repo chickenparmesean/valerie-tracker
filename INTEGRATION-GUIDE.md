@@ -305,7 +305,7 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 2 | Rewrite web/ root layout to bare skeleton | DONE |
 | 3 | Rewrite web/ root page to "Valerie Tracker API" or simple health check | DONE |
 | 4 | Swap agent auth from Supabase Auth to API key + config.json | TODO |
-| 5 | Add `trackerApiKey` field to standalone User model | TODO |
+| 5 | Add `trackerApiKey` field to standalone User model | DONE |
 | 6 | Replace Supabase JWT middleware with API key lookup in all routes | TODO |
 | 7 | Add `GET /api/tracker/ping` endpoint (validates key, returns 200) | TODO |
 | 8 | Add `GET /api/tracker/config` endpoint (returns org settings for the VA) | TODO |

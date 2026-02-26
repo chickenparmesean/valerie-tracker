@@ -127,6 +127,16 @@ valerie-tracker/
 
 ---
 
+## Integration Guide Progress
+
+| # | Task | Status |
+|---|------|--------|
+| 5 | Add `trackerApiKey` field to standalone User model | DONE (2026-02-26) |
+
+Field added: `trackerApiKey String? @unique` on User model. Applied via `prisma db push`. Prisma client regenerated.
+
+---
+
 ## Known Issues / Next Steps
 
 1. **Testing needed:** No automated tests yet. Manual testing of agent-to-web sync flow required.

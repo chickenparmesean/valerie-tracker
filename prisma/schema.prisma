@@ -45,6 +45,7 @@ model User {
   name          String?
   avatarUrl     String?
   supabaseId    String    @unique
+  trackerApiKey String?   @unique  // API key for agent auth (vt_...)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
