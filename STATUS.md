@@ -23,7 +23,7 @@ All 6 build phases completed. Web dashboard builds successfully. Electron agent 
 
 ## Phase 2: API Routes -- DONE
 
-All 12 routes implemented with JWT auth, Zod validation, and proper error handling.
+All 12 routes implemented with API key auth (validateApiKey), Zod validation, and proper error handling. Plus /api/tracker/ping health check.
 
 | Route | Method | Status |
 |-------|--------|--------|
@@ -38,8 +38,9 @@ All 12 routes implemented with JWT auth, Zod validation, and proper error handli
 | /api/time-entries | GET | Done -- date/user/project filters |
 | /api/activity | GET | Done -- date range query |
 | /api/dashboard/live | GET | Done -- real-time VA status |
+| /api/tracker/ping | GET | Done -- API key validation, returns userId |
 
-**Auth middleware:** web/src/lib/auth.ts -- validateRequest, requireRole, AuthError, handleApiError
+**Auth middleware:** web/src/lib/auth.ts -- validateApiKey, AuthError, handleApiError
 
 ## Phase 3: Electron Agent -- DONE
 
@@ -115,7 +116,7 @@ valerie-tracker/
     app/api/                -- 11 route files (KEPT)
     app/layout.tsx          -- bare skeleton
     app/page.tsx            -- API stub
-    lib/                    -- auth.ts, prisma.ts, supabase-server.ts, supabase-browser.ts (KEPT)
+    lib/                    -- auth.ts, prisma.ts, supabase-server.ts (supabase-browser.ts + auth-helpers.ts deleted)
 
   agent/src/
     main/                   -- 13 modules (entry, config, auth, db, timer, activity,
@@ -132,8 +133,14 @@ valerie-tracker/
 | # | Task | Status |
 |---|------|--------|
 | 5 | Add `trackerApiKey` field to standalone User model | DONE (2026-02-26) |
+| 6 | Replace Supabase JWT middleware with API key lookup in all routes | DONE (2026-02-26) |
+| 7 | Add `GET /api/tracker/ping` endpoint | DONE (2026-02-26) |
 
-Field added: `trackerApiKey String? @unique` on User model. Applied via `prisma db push`. Prisma client regenerated.
+**Task 5:** Field added: `trackerApiKey String? @unique` on User model. Applied via `prisma db push`. Prisma client regenerated.
+
+**Task 6:** auth.ts rewritten with validateApiKey (reads `Bearer vt_...`, looks up trackerApiKey via Prisma). All 11 route files updated to use validateApiKey instead of validateRequest. requireRole removed from all routes. supabase-browser.ts and auth-helpers.ts deleted (only used by removed dashboard UI). supabase-server.ts kept for Storage presigned URLs.
+
+**Task 7:** New endpoint at /api/tracker/ping -- validates API key, returns `{ status: "ok", userId }` on success, 401 on invalid key. Agent calls this on startup to verify its key.
 
 ---
 
