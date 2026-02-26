@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateRequest, requireRole, handleApiError } from '@/lib/auth';
+import { validateApiKey, handleApiError } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 const createProjectSchema = z.object({
@@ -12,7 +12,7 @@ const createProjectSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const ctx = await validateRequest(req);
+    const ctx = await validateApiKey(req);
     const status = req.nextUrl.searchParams.get('status') || 'ACTIVE';
 
     const projects = await prisma.project.findMany({
@@ -43,8 +43,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const ctx = await validateRequest(req);
-    requireRole(ctx, ['ADMIN', 'CLIENT']);
+    const ctx = await validateApiKey(req);
 
     const body = await req.json();
     const parsed = createProjectSchema.parse(body);

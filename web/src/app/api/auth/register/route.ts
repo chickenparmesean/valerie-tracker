@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateRequest, requireRole, handleApiError } from '@/lib/auth';
+import { validateApiKey, handleApiError } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase-server';
 import { prisma } from '@/lib/prisma';
 
@@ -14,8 +14,7 @@ const registerSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const ctx = await validateRequest(req);
-    requireRole(ctx, ['ADMIN']);
+    const ctx = await validateApiKey(req);
 
     const body = await req.json();
     const parsed = registerSchema.parse(body);

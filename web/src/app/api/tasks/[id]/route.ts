@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateRequest, handleApiError } from '@/lib/auth';
+import { validateApiKey, handleApiError } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 const updateTaskSchema = z.object({
@@ -14,7 +14,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await validateRequest(req);
+    const ctx = await validateApiKey(req);
     const { id: taskId } = await params;
 
     const task = await prisma.task.findFirst({

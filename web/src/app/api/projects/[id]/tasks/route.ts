@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateRequest, handleApiError } from '@/lib/auth';
+import { validateApiKey, handleApiError } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 const createTaskSchema = z.object({
@@ -13,7 +13,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await validateRequest(req);
+    const ctx = await validateApiKey(req);
     const { id: projectId } = await params;
 
     const project = await prisma.project.findFirst({

@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateRequest, requireRole, handleApiError } from '@/lib/auth';
+import { validateApiKey, handleApiError } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(req: NextRequest) {
   try {
-    const ctx = await validateRequest(req);
-    requireRole(ctx, ['ADMIN', 'CLIENT', 'MANAGER']);
+    const ctx = await validateApiKey(req);
 
     // Get all VA members in this org
     const vaMembers = await prisma.membership.findMany({

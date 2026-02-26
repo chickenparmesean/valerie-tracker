@@ -1,12 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from './supabase-server';
+import { NextResponse } from 'next/server';
 import { prisma } from './prisma';
 
 export interface AuthContext {
   user: {
     id: string;
     email: string;
-    supabaseId: string;
     name: string | null;
   };
   membership: {
@@ -17,26 +15,20 @@ export interface AuthContext {
   orgId: string;
 }
 
-export async function validateRequest(req: NextRequest): Promise<AuthContext> {
+export async function validateApiKey(req: Request): Promise<AuthContext> {
   const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    throw new AuthError('Missing or invalid Authorization header', 401);
+  if (!authHeader?.startsWith('Bearer vt_')) {
+    throw new AuthError('Missing or invalid API key', 401);
   }
 
-  const token = authHeader.slice(7);
-  const supabase = createServiceClient();
-  const { data: { user: supabaseUser }, error } = await supabase.auth.getUser(token);
+  const apiKey = authHeader.slice(7);
 
-  if (error || !supabaseUser) {
-    throw new AuthError('Invalid or expired token', 401);
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { supabaseId: supabaseUser.id },
+  const user = await prisma.user.findFirst({
+    where: { trackerApiKey: apiKey },
   });
 
   if (!user) {
-    throw new AuthError('User not found', 404);
+    throw new AuthError('Invalid API key', 401);
   }
 
   const membership = await prisma.membership.findFirst({
@@ -51,7 +43,6 @@ export async function validateRequest(req: NextRequest): Promise<AuthContext> {
     user: {
       id: user.id,
       email: user.email,
-      supabaseId: user.supabaseId,
       name: user.name,
     },
     membership: {
@@ -61,12 +52,6 @@ export async function validateRequest(req: NextRequest): Promise<AuthContext> {
     },
     orgId: membership.orgId,
   };
-}
-
-export function requireRole(ctx: AuthContext, roles: string[]): void {
-  if (!roles.includes(ctx.membership.role)) {
-    throw new AuthError('Insufficient permissions', 403);
-  }
 }
 
 export class AuthError extends Error {

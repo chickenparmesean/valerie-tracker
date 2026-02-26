@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateRequest, handleApiError } from '@/lib/auth';
+import { validateApiKey, handleApiError } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(req: NextRequest) {
   try {
-    const ctx = await validateRequest(req);
+    const ctx = await validateApiKey(req);
     const searchParams = req.nextUrl.searchParams;
 
     const userId = searchParams.get('userId');

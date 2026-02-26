@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateRequest, requireRole, handleApiError } from '@/lib/auth';
+import { validateApiKey, handleApiError } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase-server';
 import { prisma } from '@/lib/prisma';
 
@@ -8,8 +8,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await validateRequest(req);
-    requireRole(ctx, ['VA']);
+    const ctx = await validateApiKey(req);
 
     const { id: screenshotId } = await params;
 
