@@ -39,6 +39,7 @@ All 12 routes implemented with API key auth (validateApiKey), Zod validation, an
 | /api/activity | GET | Done -- date range query |
 | /api/dashboard/live | GET | Done -- real-time VA status |
 | /api/tracker/ping | GET | Done -- API key validation, returns userId |
+| /api/tracker/config | GET | Done -- returns org settings for the VA |
 
 **Auth middleware:** web/src/lib/auth.ts -- validateApiKey, AuthError, handleApiError
 
@@ -135,12 +136,15 @@ valerie-tracker/
 | 5 | Add `trackerApiKey` field to standalone User model | DONE (2026-02-26) |
 | 6 | Replace Supabase JWT middleware with API key lookup in all routes | DONE (2026-02-26) |
 | 7 | Add `GET /api/tracker/ping` endpoint | DONE (2026-02-26) |
+| 8 | Add `GET /api/tracker/config` endpoint | DONE (2026-02-26) |
 
 **Task 5:** Field added: `trackerApiKey String? @unique` on User model. Applied via `prisma db push`. Prisma client regenerated.
 
 **Task 6:** auth.ts rewritten with validateApiKey (reads `Bearer vt_...`, looks up trackerApiKey via Prisma). All 11 route files updated to use validateApiKey instead of validateRequest. requireRole removed from all routes. supabase-browser.ts and auth-helpers.ts deleted (only used by removed dashboard UI). supabase-server.ts kept for Storage presigned URLs.
 
 **Task 7:** New endpoint at /api/tracker/ping -- validates API key, returns `{ status: "ok", userId }` on success, 401 on invalid key. Agent calls this on startup to verify its key.
+
+**Task 8:** New endpoint at /api/tracker/config -- validates API key, looks up user's active Membership with Organization included, returns org settings (screenshotFreq, idleTimeoutMin, blurScreenshots, trackApps, trackUrls) plus userId and orgId. Returns 404 if no active membership. Pure-function pattern: handleGetConfig(userId) called from GET handler.
 
 ---
 

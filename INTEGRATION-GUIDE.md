@@ -308,7 +308,7 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 5 | Add `trackerApiKey` field to standalone User model | DONE |
 | 6 | Replace Supabase JWT middleware with API key lookup in all routes | DONE |
 | 7 | Add `GET /api/tracker/ping` endpoint (validates key, returns 200) | DONE |
-| 8 | Add `GET /api/tracker/config` endpoint (returns org settings for the VA) | TODO |
+| 8 | Add `GET /api/tracker/config` endpoint (returns org settings for the VA) | DONE |
 | 9 | Remove LoginScreen as default (keep behind --dev flag) | TODO |
 | 10 | Add config.json reading + safeStorage caching to agent startup | TODO |
 | 11 | Add error screen for "tracker not configured" | TODO |
