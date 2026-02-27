@@ -7,11 +7,23 @@ files:
   - "dist-main/**/*"
   - "dist-renderer/**/*"
   - "dist-preload/**/*"
+  - "node_modules/**/*"
+  - "package.json"
+asarUnpack:
+  - "**/*.node"
+  - "node_modules/better-sqlite3/**/*"
+  - "node_modules/sharp/**/*"
+  - "node_modules/@img/**/*"
+  - "node_modules/@miniben90/**/*"
+  - "node_modules/screenshot-desktop/**/*"
+npmRebuild: true
+electronVersion: "34.5.8"
 win:
   target:
     - target: nsis
       arch: [x64]
   icon: resources/icon.ico
+  signAndEditExecutable: false
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

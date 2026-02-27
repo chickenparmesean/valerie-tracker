@@ -11,4 +11,5 @@ dist-preload/
 out/
 *.exe
 *.ico
+!agent/resources/icon.ico
 .turbo/

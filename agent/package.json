@@ -2,6 +2,8 @@
   "name": "agent",
   "version": "0.1.0",
   "private": true,
+  "description": "Valerie Tracker desktop agent for time tracking and activity monitoring",
+  "author": "HireValerie",
   "main": "dist-main/index.js",
   "scripts": {
     "postinstall": "electron-rebuild",
