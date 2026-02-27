@@ -304,14 +304,14 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 1 | **Delete all dashboard UI** from web/ (pages, components, layouts, design tokens) | DONE |
 | 2 | Rewrite web/ root layout to bare skeleton | DONE |
 | 3 | Rewrite web/ root page to "Valerie Tracker API" or simple health check | DONE |
-| 4 | Swap agent auth from Supabase Auth to API key + config.json | TODO |
+| 4 | Swap agent auth from Supabase Auth to API key + config.json | DONE |
 | 5 | Add `trackerApiKey` field to standalone User model | DONE |
 | 6 | Replace Supabase JWT middleware with API key lookup in all routes | DONE |
 | 7 | Add `GET /api/tracker/ping` endpoint (validates key, returns 200) | DONE |
 | 8 | Add `GET /api/tracker/config` endpoint (returns org settings for the VA) | DONE |
-| 9 | Remove LoginScreen as default (keep behind --dev flag) | TODO |
-| 10 | Add config.json reading + safeStorage caching to agent startup | TODO |
-| 11 | Add error screen for "tracker not configured" | TODO |
+| 9 | Remove LoginScreen as default (keep behind --dev flag) | DONE |
+| 10 | Add config.json reading + safeStorage caching to agent startup | DONE |
+| 11 | Add error screen for "tracker not configured" | DONE |
 | 12 | Deploy standalone `web/` to Vercel for testing | TODO |
 | 13 | Build NSIS installer | TODO |
 | 14 | Test on real AWS WorkSpace (all 12 items in Testing Priority) | TODO |

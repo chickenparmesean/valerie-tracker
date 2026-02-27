@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   projects: {
     list: () => ipcRenderer.invoke('projects:list'),
   },
+  config: {
+    retry: () => ipcRenderer.invoke('config:retry'),
+    getState: () => ipcRenderer.invoke('config:state'),
+  },
   app: {
     minimize: () => ipcRenderer.invoke('app:minimize'),
     quit: () => ipcRenderer.invoke('app:quit'),
@@ -36,5 +40,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onScreenshotCaptured: (callback: () => void) => {
     ipcRenderer.on('screenshot:captured', () => callback());
+  },
+  onConfigReady: (callback: () => void) => {
+    ipcRenderer.on('config:ready', () => callback());
+  },
+  onConfigError: (callback: (error: string) => void) => {
+    ipcRenderer.on('config:error', (_event, error) => callback(error));
   },
 });

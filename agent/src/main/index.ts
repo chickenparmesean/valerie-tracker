@@ -13,8 +13,10 @@ for (const envPath of envPaths) {
 }
 
 import { app, BrowserWindow } from 'electron';
+import { isDevMode } from './config';
 import { initDatabase } from './database';
 import { initAuth, restoreSession, startAutoRefresh } from './auth';
+import { initTrackerConfig } from './tracker-config';
 import { registerIpcHandlers } from './ipc';
 import { createTray, destroyTray } from './tray';
 import { setMainWindow, resumeTimer } from './timer';
@@ -69,19 +71,53 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
-  // Initialize
+  // Initialize database (always needed)
   initDatabase();
-  initAuth();
-  registerIpcHandlers();
 
-  createWindow();
+  if (isDevMode) {
+    // --- DEV MODE: existing Supabase Auth flow ---
+    console.log('Tracker: starting in --dev mode (Supabase Auth)');
+    initAuth();
+    registerIpcHandlers();
+    createWindow();
 
-  // Try to restore session
-  const restored = await restoreSession();
-  if (restored) {
-    startAutoRefresh();
-    startEngines();
-    resumeTimer();
+    const restored = await restoreSession();
+    if (restored) {
+      startAutoRefresh();
+      startEngines();
+      resumeTimer();
+    }
+  } else {
+    // --- NORMAL MODE: API key from config.json / safeStorage ---
+    console.log('Tracker: starting in normal mode (API key auth)');
+    initAuth(); // no-op in normal mode, but keeps the module initialized
+    registerIpcHandlers();
+    createWindow();
+
+    const result = await initTrackerConfig();
+
+    if (result.status === 'ready') {
+      console.log('Tracker: config loaded, starting engines');
+      // Notify renderer that auth succeeded
+      mainWindow?.webContents.once('did-finish-load', () => {
+        mainWindow?.webContents.send('config:ready');
+      });
+      // If page already loaded, send immediately
+      if (!mainWindow?.webContents.isLoading()) {
+        mainWindow?.webContents.send('config:ready');
+      }
+      startEngines();
+      resumeTimer();
+    } else {
+      console.log(`Tracker: config failed — ${result.status}`);
+      // Renderer will check error state via IPC and show ErrorScreen
+      mainWindow?.webContents.once('did-finish-load', () => {
+        mainWindow?.webContents.send('config:error', result.status);
+      });
+      if (!mainWindow?.webContents.isLoading()) {
+        mainWindow?.webContents.send('config:error', result.status);
+      }
+    }
   }
 
   // Auto-launch on Windows

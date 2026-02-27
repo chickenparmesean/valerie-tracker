@@ -49,9 +49,10 @@ All 13 API routes implemented with API key auth (validateApiKey), Zod validation
 
 | Module | File | Status |
 |--------|------|--------|
-| Entry point | index.ts | Done -- dotenv loading, window creation |
-| Config | config.ts | Done -- env vars with fallbacks |
-| Auth | auth.ts | Done -- Supabase auth, safeStorage (DPAPI) |
+| Entry point | index.ts | Done -- dual startup: --dev (Supabase) or normal (API key) |
+| Config | config.ts | Done -- isDevMode flag, dynamic apiBaseUrl getter/setter |
+| Tracker Config | tracker-config.ts | Done -- config.json reading, safeStorage, ping, server config merge, offline |
+| Auth | auth.ts | Done -- getAuthHeaders() for both modes, Supabase gated behind --dev |
 | Database | database.ts | Done -- SQLite outbox (better-sqlite3) |
 | Timer | timer.ts | Done -- start/stop/resume, UUID keys |
 | Activity | activity.ts | Done -- powerMonitor 1s polling |
@@ -63,8 +64,8 @@ All 13 API routes implemented with API key auth (validateApiKey), Zod validation
 | Auto-launch | auto-launch.ts | Done -- Windows Registry Run key |
 | IPC handlers | ipc.ts | Done -- contextBridge API |
 
-**Renderer screens:** LoginScreen, MainScreen (project list + timer), IdleDialog
-**Preload:** contextBridge with typed API (auth, timer, projects, activity, screenshots, idle)
+**Renderer screens:** LoginScreen (--dev only), MainScreen (project list + timer), IdleDialog, ErrorScreen (not-configured / key-invalid)
+**Preload:** contextBridge with typed API (auth, timer, projects, config, activity, screenshots, idle)
 
 ## Phase 4: Web Dashboard -- REMOVED
 
@@ -120,11 +121,11 @@ valerie-tracker/
     lib/                    -- auth.ts, prisma.ts, supabase-server.ts (supabase-browser.ts + auth-helpers.ts deleted)
 
   agent/src/
-    main/                   -- 13 modules (entry, config, auth, db, timer, activity,
+    main/                   -- 14 modules (entry, config, tracker-config, auth, db, timer, activity,
                                window-tracker, screenshot, idle, sync, tray, auto-launch, ipc)
-    preload/                -- contextBridge
+    preload/                -- contextBridge (auth, timer, projects, config, idle, app)
     renderer/               -- App, main, index.html
-    renderer/screens/       -- Login, Main, IdleDialog
+    renderer/screens/       -- Login (--dev only), Main, IdleDialog, ErrorScreen
 ```
 
 ---
@@ -140,6 +141,9 @@ valerie-tracker/
 | 6 | Replace Supabase JWT middleware with API key lookup in all routes | DONE (2026-02-26) |
 | 7 | Add `GET /api/tracker/ping` endpoint | DONE (2026-02-26) |
 | 8 | Add `GET /api/tracker/config` endpoint | DONE (2026-02-26) |
+| 9 | Remove LoginScreen as default (keep behind --dev flag) | DONE (2026-02-26) |
+| 10 | Add config.json reading + safeStorage caching to agent startup | DONE (2026-02-26) |
+| 11 | Add error screen for "tracker not configured" | DONE (2026-02-26) |
 
 **Tasks 1-3:** Dashboard UI stripped from web/ -- all pages, components, layout wrappers, design tokens, and fonts removed. Root layout rewritten to bare `<html><body>{children}</body></html>`. Root page replaced with simple "Valerie Tracker API" stub.
 
@@ -149,19 +153,33 @@ valerie-tracker/
 
 **Task 7:** New endpoint at /api/tracker/ping -- validates API key, returns `{ status: "ok", userId }` on success, 401 on invalid key. Agent calls this on startup to verify its key.
 
-**Task 8:** New endpoint at /api/tracker/config -- validates API key, looks up user's active Membership with Organization included, returns org settings (screenshotFreq, idleTimeoutMin, blurScreenshots, trackApps, trackUrls) plus userId and orgId. Returns 404 if no active membership. Pure-function pattern: handleGetConfig(userId) called from GET handler.
+**Task 8:** New endpoint at /api/tracker/config
+
+**Task 9:** LoginScreen gated behind --dev flag. Normal startup (no --dev) skips LoginScreen entirely and goes to config.json/safeStorage auth flow. process.argv checked in config.ts via isDevMode constant.
+
+**Task 10:** New module tracker-config.ts handles the full API key auth startup:
+1. Checks safeStorage for cached API key + apiBaseUrl
+2. Falls back to reading C:\ProgramData\ValerieTracker\config.json
+3. Caches apiKey in safeStorage (encrypted via DPAPI)
+4. Pings GET /api/tracker/ping to validate key (200=ok, 401=invalid)
+5. Fetches GET /api/tracker/config for server settings
+6. Merges settings (server wins over local config.json)
+7. Caches merged settings for offline starts
+8. Offline behavior: if cached key + settings exist but server unreachable, starts tracking with cached settings
+Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), config.ts (isDevMode, dynamic apiBaseUrl), sync.ts (uses getAuthHeaders), ipc.ts (uses getAuthHeaders, added config:retry + config:state handlers), index.ts (dual startup flow)
+
+**Task 11:** ErrorScreen.tsx with two states: "not configured" (no config.json, no cached key) and "key invalid" (401 from ping). Retry button re-runs initTrackerConfig. Preload bridge updated with config:retry, config:getState, onConfigReady, onConfigError. App.tsx updated with screen routing (loading/login/main/error). -- validates API key, looks up user's active Membership with Organization included, returns org settings (screenshotFreq, idleTimeoutMin, blurScreenshots, trackApps, trackUrls) plus userId and orgId. Returns 404 if no active membership. Pure-function pattern: handleGetConfig(userId) called from GET handler.
 
 ---
 
 ## Known Issues / Next Steps
 
-**Next up: Agent auth swap (tasks 4, 9-11)**
-- Task 4: Swap agent auth from Supabase Auth to API key + config.json
-- Task 9: Remove LoginScreen as default (keep behind --dev flag)
-- Task 10: Add config.json reading + safeStorage caching to agent startup
-- Task 11: Add error screen for "tracker not configured"
+**Agent auth swap COMPLETE (tasks 9-11, 2026-02-26)**
+- Task 9: DONE -- LoginScreen gated behind --dev flag, normal mode skips to config.json auth
+- Task 10: DONE -- tracker-config.ts reads config.json, caches API key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings
+- Task 11: DONE -- ErrorScreen with "not configured" and "key invalid" states, retry button
 
-**Then: Deploy and test (tasks 12-18)**
+**Next: Deploy and test (tasks 12-18)**
 1. Deploy standalone web/ to Vercel for testing
 2. Build NSIS installer
 3. Test on real AWS WorkSpace (all 12 items in Testing Priority)

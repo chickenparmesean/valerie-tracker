@@ -6,7 +6,7 @@ import {
   markScreenshotUploaded,
   queueForSync,
 } from './database';
-import { getAccessToken } from './auth';
+import { getAuthHeaders } from './auth';
 import { queueTimeEntrySync, getTimerState } from './timer';
 import { config } from './config';
 
@@ -16,8 +16,8 @@ const MAX_BACKOFF_MS = 300_000; // 5 minutes
 
 export function startSyncEngine(): void {
   syncInterval = setInterval(async () => {
-    const token = getAccessToken();
-    if (!token) return;
+    const headers = getAuthHeaders();
+    if (!headers) return;
 
     // Sync running time entry before batch
     const timerState = getTimerState();
@@ -25,12 +25,12 @@ export function startSyncEngine(): void {
       queueTimeEntrySync();
     }
 
-    await syncBatch(token);
-    await uploadScreenshots(token);
+    await syncBatch(headers);
+    await uploadScreenshots(headers);
   }, config.syncIntervalMs);
 }
 
-async function syncBatch(token: string): Promise<void> {
+async function syncBatch(authHeaders: Record<string, string>): Promise<void> {
   const items = getUnsyncedItems(100);
   if (items.length === 0) return;
 
@@ -64,7 +64,7 @@ async function syncBatch(token: string): Promise<void> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        ...authHeaders,
       },
       body: JSON.stringify(payload),
     });
@@ -73,7 +73,6 @@ async function syncBatch(token: string): Promise<void> {
       markSynced(syncedKeys);
       retryCount = 0;
     } else if (res.status === 401) {
-      // Token expired — will be refreshed by auth module
       console.error('Sync: 401 unauthorized');
     } else {
       console.error('Sync failed:', res.status);
@@ -85,7 +84,7 @@ async function syncBatch(token: string): Promise<void> {
   }
 }
 
-async function uploadScreenshots(token: string): Promise<void> {
+async function uploadScreenshots(authHeaders: Record<string, string>): Promise<void> {
   const screenshots = getUnuploadedScreenshots(5);
 
   for (const ss of screenshots) {
@@ -97,7 +96,7 @@ async function uploadScreenshots(token: string): Promise<void> {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...authHeaders,
         },
         body: JSON.stringify({
           fileName: `${ss.idempotency_key}.webp`,
@@ -110,7 +109,7 @@ async function uploadScreenshots(token: string): Promise<void> {
 
       const { uploadUrl, storagePath, publicUrl } = await presignRes.json();
 
-      // Upload file
+      // Upload file directly to Supabase Storage via presigned URL
       const fileBuffer = fs.readFileSync(ss.file_path);
       const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
