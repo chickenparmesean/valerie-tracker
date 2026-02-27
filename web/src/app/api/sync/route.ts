@@ -97,6 +97,20 @@ export async function POST(req: NextRequest) {
         counts.timeEntries++;
       }
 
+      // Build lookup map: idempotencyKey -> actual DB id for time entries
+      // The agent sends idempotencyKey (UUID) as timeEntryId in child records,
+      // but the DB foreign key expects the cuid ID from the TimeEntry record.
+      const timeEntryMap = new Map<string, string>();
+      for (const entry of payload.timeEntries) {
+        const row = await tx.timeEntry.findUnique({
+          where: { idempotencyKey: entry.idempotencyKey },
+          select: { id: true },
+        });
+        if (row) {
+          timeEntryMap.set(entry.idempotencyKey, row.id);
+        }
+      }
+
       // Insert activity snapshots (skip duplicates)
       if (payload.activitySnapshots.length > 0) {
         const result = await tx.activitySnapshot.createMany({
@@ -108,7 +122,7 @@ export async function POST(req: NextRequest) {
             keyboardPct: s.keyboardPct,
             mousePct: s.mousePct,
             userId: ctx.user.id,
-            timeEntryId: s.timeEntryId,
+            timeEntryId: timeEntryMap.get(s.timeEntryId) || s.timeEntryId,
           })),
           skipDuplicates: true,
         });
@@ -126,7 +140,7 @@ export async function POST(req: NextRequest) {
             processPath: w.processPath,
             durationSec: w.durationSec,
             userId: ctx.user.id,
-            timeEntryId: w.timeEntryId,
+            timeEntryId: timeEntryMap.get(w.timeEntryId) || w.timeEntryId,
           })),
           skipDuplicates: true,
         });
@@ -146,7 +160,7 @@ export async function POST(req: NextRequest) {
             activeTitle: s.activeTitle,
             fileSizeBytes: s.fileSizeBytes,
             userId: ctx.user.id,
-            timeEntryId: s.timeEntryId,
+            timeEntryId: timeEntryMap.get(s.timeEntryId) || s.timeEntryId,
           })),
           skipDuplicates: true,
         });
