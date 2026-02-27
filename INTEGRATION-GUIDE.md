@@ -71,7 +71,7 @@ valerie-tracker/
 │           ├── auth.ts     ← validateApiKey middleware
 │           ├── prisma.ts   ← prisma client
 │           └── supabase.ts ← storage client (presigned URLs)
-├── prisma/             ← Schema (trackerApiKey on User)
+├── prisma/             ← Schema (trackerApiKey on User) + seed.ts
 ├── shared/             ← Types
 └── .env
 ```
@@ -315,11 +315,11 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 12 | Deploy standalone `web/` to Vercel for testing | DONE |
 | 13 | Build NSIS installer | DONE |
 | 13a | Add electron-updater auto-update (GitHub Releases, tray menu, 4h checks) | DONE |
-| 14 | Test on real AWS WorkSpace (all 12 items in Testing Priority) | TODO |
-| 15 | Fix any native module / compatibility issues found during testing | TODO |
-| 16 | Verify screenshot capture + upload end-to-end | TODO |
-| 17 | Verify sync engine end-to-end | TODO |
-| 18 | Package final working installer ready for golden image | TODO |
+| 14 | Test on real AWS WorkSpace (all 12 items in Testing Priority) | DONE (2026-02-27) |
+| 15 | Fix any native module / compatibility issues found during testing | DONE (2026-02-27) |
+| 16 | Verify screenshot capture + upload end-to-end | DONE (2026-02-27) |
+| 17 | Verify sync engine end-to-end | DONE (2026-02-27) |
+| 18 | Package final working installer ready for golden image | DONE (2026-02-27) |
 
 ### Agent Auth Swap -- COMPLETE (tasks 4, 9-11)
 
@@ -372,5 +372,30 @@ npm run publish:agent
 This builds the NSIS installer and uploads it as a GitHub Release with `latest.yml` metadata. Running agents will detect it within 4 hours (or immediately if user clicks "Check for Updates").
 
 **GH_TOKEN is needed ONLY at publish time.** The agent checks for updates using the public GitHub Releases API -- no token needed at runtime.
+
+**Task 14:** Installed on AWS WorkSpace via NSIS installer. Config.json auth working -- agent reads `C:\ProgramData\ValerieTracker\config.json`, pings Vercel API (`/api/tracker/ping`), fetches server config (`/api/tracker/config`). Auto-launch on reboot confirmed via Registry Run key (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`). All 12 Testing Priority items tested and passing.
+
+**Task 15:** All native modules work on AWS WorkSpaces without any compatibility issues. No fallbacks needed. Specifically: `screenshot-desktop` captures screenshots correctly, `@miniben90/x-win` detects active windows (Chrome, PowerShell, Explorer, Electron all identified with correct app names and window titles), `powerMonitor.getSystemIdleTime()` returns correct values (Chromium bug #30126 did NOT affect Electron 34.5.8), `better-sqlite3` local SQLite cache working, `sharp` WebP compression working (~73-96KB per screenshot). The `desktop-idle` fallback package was not required.
+
+**Task 16:** Screenshot capture + presigned URL upload + Supabase Storage + metadata sync all verified end-to-end on WorkSpace. WebP format via sharp, ~73-96KB per screenshot. Randomized timing within 10-minute intervals. 4 screenshots captured during test session. All metadata fields populated: capturedAt, storageUrl, storagePath, activityPct, activeApp, fileSizeBytes.
+
+**Task 17:** Full sync engine verified end-to-end on WorkSpace. All record types sync correctly: TimeEntries (create on start + update on stop with stoppedAt/status/durationSec), ActivitySnapshots (60s intervals, 0-82% activity range observed), WindowSamples (3s polling aggregated, app names and titles captured), Screenshots (metadata synced after presigned URL upload). Two server-side fixes were required during testing: (1) nullable taskId -- Zod schema changed from `z.string().optional()` to `z.string().nullable().optional()` because the agent sends null for taskless time entries; (2) timeEntryId resolution -- sync route now maps `timeEntryIdempotencyKey` to actual DB IDs for child records (ActivitySnapshot, WindowSample, Screenshot) via a lookup after TimeEntry upsert.
+
+**Task 18:** The original installer (v0.1.0, "Valerie Tracker Setup 0.1.0.exe", 81 MB) is the golden installer. No agent code changes were needed during WorkSpace testing -- only server-side sync route fixes were applied. The v0.1.0 installer is ready for golden image deployment on AWS WorkSpaces.
+
+---
+
+## WorkSpace Testing Completed (2026-02-27)
+
+All 18 integration guide tasks are DONE. The Electron desktop agent has been tested end-to-end on a real AWS WorkSpace with all tests passing:
+
+- **Installation**: NSIS installer works, auto-launch on reboot via Registry Run key
+- **Authentication**: Config.json + API key auth working, Vercel API connection verified
+- **Native modules**: All 5 native packages work out of the box (screenshot-desktop, x-win, powerMonitor, better-sqlite3, sharp)
+- **Tracking**: Time entries, activity snapshots, window samples, and screenshots all capture and sync correctly
+- **Sync**: Agent syncs every 60s to Vercel API, idempotency keys prevent duplicates, two server-side fixes applied
+- **Screenshots**: Randomized capture, WebP compression, presigned URL upload to Supabase Storage, metadata synced
+
+**The project is ready for va-platform integration.** The agent repo stays alive for future agent updates. The web/ folder (standalone API) gets retired when va-platform absorbs the routes.
 
 **When all 18 items are done, hand it back to the va-platform project for integration.**

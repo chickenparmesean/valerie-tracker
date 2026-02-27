@@ -1,10 +1,13 @@
 # Valerie Tracker — MVP Project Plan
 
-> **Note (2026-02-26):** This is the original build plan. Some sections are now stale:
+> **Note (2026-02-27):** This is the original build plan. Some sections are now stale:
+> - **All 18 integration guide tasks are complete.** WorkSpace testing passed (2026-02-27). Agent is production-ready for va-platform integration.
 > - **Auth** has been swapped from Supabase Auth (JWT) to API key auth (`Bearer vt_...`). See INTEGRATION-GUIDE.md for current auth design.
 > - **Web dashboard** (Phase 4) has been removed. Production dashboard lives in va-platform repo. The web/ folder is now a headless API server only.
 > - **API routes** now include `/api/tracker/ping` and `/api/tracker/config` (not in original plan).
-> - See STATUS.md for current build status and INTEGRATION-GUIDE.md for the active task checklist.
+> - **Sync route fixes** applied during WorkSpace testing: nullable taskId in Zod schema, timeEntryId resolution from idempotency keys for child records.
+> - **Seed script** available at `prisma/seed.ts` -- run `npx prisma db seed` to create test data (1 user, 1 org, 2 projects, 6 tasks).
+> - See STATUS.md for current build status and INTEGRATION-GUIDE.md for the complete task checklist (all DONE).
 
 ## Overview
 

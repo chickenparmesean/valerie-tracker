@@ -1,11 +1,11 @@
 # Valerie Tracker -- Build Status
 
 Last updated: 2026-02-27
-Branch: staging (19 commits)
+Branch: staging (28 commits)
 
-## Overall Status: NSIS Installer Built -- Ready for WorkSpace Testing
+## Overall Status: All WorkSpace Tests Passed -- Ready for va-platform Integration
 
-All 6 build phases completed. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12 done). NSIS installer built and verified (task 13 done). Next: test on AWS WorkSpace (tasks 14-18).
+All 6 build phases completed. All 18 integration guide tasks DONE. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12). NSIS installer built and verified (task 13). WorkSpace testing completed with all tests passing (tasks 14-18). Two server-side sync route fixes applied during testing (nullable taskId, timeEntryId resolution from idempotency keys). The agent is production-ready for va-platform integration.
 
 ---
 
@@ -23,7 +23,7 @@ All 6 build phases completed. Agent auth swapped from Supabase Auth to API key +
 
 ## Phase 2: API Routes -- DONE
 
-All 13 API routes implemented with API key auth (validateApiKey), Zod validation, and proper error handling. Includes /api/tracker/ping and /api/tracker/config agent endpoints.
+All 13 API routes implemented with API key auth (validateApiKey), Zod validation, and proper error handling. Includes /api/tracker/ping and /api/tracker/config agent endpoints. Sync route fixes applied during WorkSpace testing: nullable taskId in Zod schema (z.string().nullable().optional()), and timeEntryId resolution from idempotency keys for child records (ActivitySnapshot, WindowSample, Screenshot).
 
 | Route | Method | Status |
 |-------|--------|--------|
@@ -101,6 +101,8 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | NSIS installer | 0ea2a8c | signAndEditExecutable: false (skip code signing for AWS WorkSpaces) |
 | NSIS installer | 0ea2a8c | Added description + author to agent/package.json (required by electron-builder) |
 | NSIS installer | 0ea2a8c | Placeholder icon created at agent/resources/icon.ico (256x256) |
+| Sync route: nullable taskId | -- | Zod schema changed from z.string().optional() to z.string().nullable().optional() -- agent sends null for taskless time entries |
+| Sync route: timeEntryId resolution | -- | Sync route now maps idempotency keys to actual DB IDs for child records (ActivitySnapshot, WindowSample, Screenshot) -- agent sends timeEntryIdempotencyKey, server resolves to timeEntryId |
 
 ## Deployment
 
@@ -128,7 +130,35 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Native modules | better-sqlite3 (rebuilt for Electron 34.5.8), sharp-win32-x64, x-win-win32-x64-msvc |
 | Build command | `cd agent && npm run build:agent` |
 | Output dir | agent/dist/ |
-| Tested | Installs and launches on dev machine, all native modules load |
+| Tested | Installs and launches on dev machine and AWS WorkSpace, all native modules load, full sync verified |
+
+### WorkSpace Testing Results (2026-02-27)
+
+All tests conducted on a real AWS WorkSpace. Every test passed.
+
+| Test | Result | Details |
+|------|--------|---------|
+| Install on AWS WorkSpace | PASSED | NSIS installer, default path, launches cleanly |
+| Config.json auth | PASSED | Reads C:\ProgramData\ValerieTracker\config.json, pings Vercel, fetches server config |
+| Auto-launch on reboot | PASSED | Registry Run key works, app starts on Windows login |
+| screenshot-desktop | PASSED | Captures screenshots correctly on WorkSpaces |
+| @miniben90/x-win | PASSED | Detects active windows -- Chrome, PowerShell, Explorer, Electron all identified |
+| powerMonitor.getSystemIdleTime() | PASSED | Returns correct values (Chromium bug #30126 did NOT affect this Electron version) |
+| better-sqlite3 | PASSED | Local SQLite cache working |
+| sharp | PASSED | WebP compression working (~73-96KB per screenshot) |
+| Sync engine | PASSED | TimeEntries, ActivitySnapshots, WindowSamples all sync to Supabase Postgres via Vercel API |
+| Screenshot capture + upload | PASSED | Randomized capture, presigned URL upload to Supabase Storage, metadata synced. 4 screenshots captured during test session |
+| Time entry start/stop | PASSED | Start syncs as RUNNING, stop syncs with stoppedAt + status STOPPED + correct durationSec |
+| Activity tracking | PASSED | 60s interval snapshots, activity % calculated correctly (0-82% range observed) |
+| Window tracking | PASSED | App names (Electron, Google Chrome, Windows PowerShell, Windows Explorer), window titles, process paths all captured |
+| Idle detection | PASSED | Dialog appeared after 5 min idle, "Discard & Stop" option works correctly |
+| Screenshot metadata | PASSED | capturedAt, storageUrl, storagePath, activityPct, activeApp, fileSizeBytes all populated |
+
+**Native modules on WorkSpaces: ALL PASSED** -- screenshot-desktop, @miniben90/x-win, powerMonitor.getSystemIdleTime(), better-sqlite3, sharp all work out of the box. No fallbacks needed (desktop-idle not required).
+
+**Sync route fixes required during testing:**
+- **nullable taskId** -- Agent sends null for taskless time entries. Zod schema changed from `z.string().optional()` to `z.string().nullable().optional()`.
+- **timeEntryId resolution** -- Agent sends `timeEntryIdempotencyKey` for child records. Sync route now maps idempotency keys to actual DB IDs via a lookup after TimeEntry upsert.
 
 ---
 
@@ -151,6 +181,7 @@ valerie-tracker/
 
   prisma/
     schema.prisma           -- 10 models, 5 enums
+    seed.ts                 -- test data: 1 user, 1 org, 2 projects, 6 tasks (npx prisma db seed)
 
   web/src/
     app/api/                -- 13 route files (11 original + tracker/ping + tracker/config)
@@ -184,6 +215,11 @@ valerie-tracker/
 | 11 | Add error screen for "tracker not configured" | DONE (2026-02-26) |
 | 12 | Deploy standalone web/ to Vercel for testing | DONE (2026-02-27) |
 | 13 | Build NSIS Windows installer | DONE (2026-02-27) |
+| 14 | Test on real AWS WorkSpace | DONE (2026-02-27) |
+| 15 | Fix native module / compatibility issues | DONE (2026-02-27) -- no issues found, all native modules work |
+| 16 | Verify screenshot capture + upload end-to-end | DONE (2026-02-27) |
+| 17 | Verify sync engine end-to-end | DONE (2026-02-27) |
+| 18 | Package final working installer for golden image | DONE (2026-02-27) |
 
 **Tasks 1-3:** Dashboard UI stripped from web/ -- all pages, components, layout wrappers, design tokens, and fonts removed. Root layout rewritten to bare `<html><body>{children}</body></html>`. Root page replaced with simple "Valerie Tracker API" stub.
 
@@ -218,18 +254,22 @@ Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), c
 
 ## Known Issues / Next Steps
 
-**Auth work complete (tasks 1-11). Vercel deployment complete (task 12). NSIS installer built (task 13).** Web API uses API key auth, deployed to https://valerie-tracker-web.vercel.app with auto-deploys from staging. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. NSIS installer produces working .exe with all native modules packaged.
+**All 18 integration guide tasks DONE.** Web API uses API key auth, deployed to https://valerie-tracker-web.vercel.app with auto-deploys from staging. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. NSIS installer produces working .exe with all native modules packaged. All WorkSpace tests passed (2026-02-27). Two sync route fixes applied during testing. Agent is production-ready for va-platform integration.
 
-**Next: Test on AWS WorkSpace (tasks 14-18)**
+**Completed:**
 1. ~~Build NSIS installer (task 13)~~ -- DONE
-2. Test on real AWS WorkSpace -- all 12 items in Testing Priority (task 14)
-3. Fix native module / compatibility issues (task 15)
-4. Verify screenshot capture + upload end-to-end (task 16)
-5. Verify sync engine end-to-end (task 17)
-6. Package final working installer for golden image (task 18)
+2. ~~Test on real AWS WorkSpace (task 14)~~ -- DONE, all tests passed
+3. ~~Fix native module / compatibility issues (task 15)~~ -- DONE, no issues found
+4. ~~Verify screenshot capture + upload end-to-end (task 16)~~ -- DONE
+5. ~~Verify sync engine end-to-end (task 17)~~ -- DONE, two server-side fixes applied
+6. ~~Package final working installer for golden image (task 18)~~ -- DONE, v0.1.0 is the golden installer
+
+**Ready for va-platform integration.** The agent repo stays alive for future agent updates. The web/ folder (standalone API) gets retired when va-platform absorbs the routes.
+
+**Seed script available:** `npx prisma db seed` creates test data -- 1 VA user, 1 org, 2 projects, 6 tasks, 6 task assignments. Test API key: `vt_test123`.
 
 **Standing items:**
-- No automated tests yet -- manual testing of agent-to-web sync flow required
+- No automated tests yet -- all testing was manual on AWS WorkSpace
 - Code signing skipped (signAndEditExecutable: false) -- not needed for WorkSpaces, can add later if distributing externally
 - Supabase Storage "screenshots" bucket must be created manually (private)
 - electron-updater configured for GitHub Releases (publish: github, owner: chickenparmesean, repo: valerie-tracker)

@@ -1,5 +1,45 @@
 # Building Valerie Tracker: a complete technical blueprint
 
+## Implementation Notes (2026-02-27)
+
+All recommended packages were used and work correctly on AWS WorkSpaces. Testing was conducted on a real AWS WorkSpace with the v0.1.0 NSIS installer.
+
+### Package Performance on AWS WorkSpaces
+
+| Package | Blueprint Prediction | Actual Result |
+|---------|---------------------|---------------|
+| screenshot-desktop | ~150ms capture | Confirmed -- captures correctly, no black screenshot bug |
+| @miniben90/x-win | <1ms active window detection | Confirmed -- detects active windows instantly on WorkSpaces (Chrome, PowerShell, Explorer, Electron all identified with correct app names, window titles, and process paths) |
+| powerMonitor.getSystemIdleTime() | May be affected by Chromium bug #30126 | Works correctly -- bug did NOT affect Electron 34.5.8 on WorkSpaces. desktop-idle fallback was NOT needed. |
+| better-sqlite3 | Offline cache | Confirmed -- local SQLite outbox working, syncs on 60s interval |
+| sharp | WebP compression | Confirmed -- ~73-96KB per screenshot (within predicted 100-150KB range, actually smaller) |
+
+### Installer & Resource Usage
+
+- **Installer size**: 81 MB (within predicted 65-85 MB range)
+- **Format**: NSIS, non-silent, Windows x64 only
+- **Code signing**: Skipped (not needed for WorkSpaces deployment)
+- **No fallback packages needed**: desktop-idle was not required, all primary packages work
+
+### Sync Route Fixes Required
+
+Two server-side fixes were needed during WorkSpace testing (agent code unchanged):
+
+1. **Nullable taskId**: Agent sends `taskId: null` for taskless time entries. The Zod validation schema required changing from `z.string().optional()` to `z.string().nullable().optional()`.
+2. **timeEntryId resolution**: Child records (ActivitySnapshot, WindowSample, Screenshot) reference their parent TimeEntry by idempotency key (not DB ID). The sync route was updated to map `timeEntryIdempotencyKey` to actual DB IDs after the TimeEntry upsert.
+
+### Architecture Validation
+
+The blueprint's core architecture decisions were all validated:
+- SQLite outbox pattern works reliably for offline resilience
+- Presigned URL screenshot upload pattern works correctly with Supabase Storage
+- 60-second sync interval is appropriate for data freshness
+- Randomized screenshot timing within 10-minute windows works as designed
+- Registry Run key auto-launch works on WorkSpaces
+- safeStorage (Windows DPAPI) API key caching works correctly
+
+---
+
 **Replacing Hubstaff with a proprietary Electron-based time tracker is feasible as a solo-developer MVP.** The recommended stack—Electron + `screenshot-desktop` + `@miniben90/x-win` + Supabase Auth/Storage/Realtime + Next.js API routes on Vercel—can be built in a single focused sprint with Claude Code. Total memory footprint on a 4GB AWS WorkSpace will land at **100–200 MB**, leaving ample room for VA productivity tools. Costs at 100 VAs are negligible: **under $2/month for screenshot storage** on top of the existing Supabase Pro plan. This report provides the specific packages, schemas, architecture patterns, and deployment strategy needed to one-shot the build.
 
 ---

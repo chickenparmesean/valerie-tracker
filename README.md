@@ -2,12 +2,26 @@
 
 A Hubstaff-replacement time tracker for virtual assistants. Electron desktop agent + Next.js API server (headless, no dashboard UI), backed by Supabase.
 
+## Current Status
+
+**All WorkSpace tests passed -- ready for va-platform integration (2026-02-27).**
+
+All 18 integration guide tasks complete. The Electron agent has been tested end-to-end on a real AWS WorkSpace:
+
+- NSIS installer works, auto-launches on reboot
+- Config.json + API key auth working against Vercel API
+- All 5 native modules work out of the box (screenshot-desktop, x-win, powerMonitor, better-sqlite3, sharp)
+- Time tracking, activity snapshots, window samples, and screenshots all capture and sync correctly
+- Two server-side sync route fixes applied during testing (nullable taskId, timeEntryId resolution)
+
+See STATUS.md for full test results and INTEGRATION-GUIDE.md for the complete task checklist.
+
 ## Architecture
 
 ```
 valerie-tracker/
   shared/    -- Shared TypeScript types and enums
-  prisma/    -- Database schema (Prisma ORM)
+  prisma/    -- Database schema (Prisma ORM) + seed script
   web/       -- Next.js 15 headless API server with 13 routes
   agent/     -- Electron desktop app (Windows)
 ```
@@ -16,6 +30,8 @@ valerie-tracker/
 - **Screenshots** upload via presigned URLs to Supabase Storage
 - **Activity detection** uses `powerMonitor.getSystemIdleTime()` only (no keylogging)
 - **Idempotency keys** (UUID) on all synced records prevent duplicates
+- **Sync behavior**: agent syncs every 60 seconds, idempotency keys prevent duplicates on retry
+- **Screenshot flow**: randomized within 10-minute window, compressed to WebP via sharp, uploaded via presigned URL to Supabase Storage
 
 ## Prerequisites
 
@@ -50,6 +66,80 @@ npx prisma db push --schema=prisma/schema.prisma
 ```
 
 4. Create a "screenshots" storage bucket in the Supabase dashboard (set to private).
+
+5. Seed test data (optional):
+```bash
+npx prisma db seed
+```
+Creates: 1 VA user (`testva@hirevalerie.com`, API key `vt_test123`), 1 organization (`Test Organization`), 2 projects (`Client Communications`, `Administrative Tasks`), 6 tasks, 6 task assignments. The seed uses upserts so it's safe to run multiple times.
+
+## Config.json (Agent Configuration)
+
+The agent reads its configuration from a JSON file on startup:
+
+**Location:** `C:\ProgramData\ValerieTracker\config.json`
+
+**Full example:**
+```json
+{
+  "apiBaseUrl": "https://valerie-tracker-web.vercel.app",
+  "apiKey": "vt_test123",
+  "vaId": "test-va-001",
+  "screenshotFreq": 1,
+  "idleTimeoutMin": 5,
+  "blurScreenshots": false,
+  "trackApps": true,
+  "trackUrls": true
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| apiBaseUrl | string | URL of the Vercel API deployment |
+| apiKey | string | API key (must start with `vt_`), maps to `trackerApiKey` on User model |
+| vaId | string | VA identifier (informational) |
+| screenshotFreq | number | Screenshots per 10-minute interval (default 1) |
+| idleTimeoutMin | number | Minutes before idle dialog appears (default 5) |
+| blurScreenshots | boolean | Whether to blur captured screenshots |
+| trackApps | boolean | Whether to track active application names |
+| trackUrls | boolean | Whether to track browser URLs |
+
+On startup, the agent:
+1. Checks Electron safeStorage for cached API key
+2. Falls back to reading config.json
+3. Caches key in safeStorage (encrypted via Windows DPAPI)
+4. Pings `GET /api/tracker/ping` to validate key
+5. Fetches `GET /api/tracker/config` for server-side org settings
+6. Merges settings (server wins over local config.json values)
+7. If offline but cached key + settings exist, starts tracking with cached settings
+
+## AWS WorkSpace Deployment
+
+Steps to deploy the agent on an AWS WorkSpace:
+
+1. **Create config.json** with the VA's API key and Vercel URL:
+```powershell
+mkdir C:\ProgramData\ValerieTracker
+# Create config.json with apiBaseUrl, apiKey, and settings
+```
+
+2. **Install the agent** -- run "Valerie Tracker Setup 0.1.0.exe" (81 MB NSIS installer, default install path)
+
+3. **Launch** -- the agent verifies the API key, fetches config from the server, and shows projects/tasks
+
+4. **Auto-launches on reboot** -- Registry Run key at `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` ensures the agent starts on Windows login
+
+### Verified Test Results (AWS WorkSpace, 2026-02-27)
+
+- Install + launch: PASSED
+- Config.json auth + Vercel API connection: PASSED
+- All native modules (screenshot-desktop, x-win, powerMonitor, better-sqlite3, sharp): PASSED
+- Time entry start/stop sync: PASSED
+- Activity tracking (60s snapshots, 0-82% range): PASSED
+- Window tracking (app names, titles, process paths): PASSED
+- Screenshot capture + presigned URL upload: PASSED (WebP, ~73-96KB)
+- Idle detection dialog after 5 min: PASSED
+- Auto-launch on reboot: PASSED
 
 ## Development
 
@@ -90,12 +180,11 @@ This runs `vite build` + `tsc` for main/preload + `electron-builder --win`. The 
 
 To test the full agent-to-API flow locally:
 
-1. **Seed a test user** with a `trackerApiKey` in the database:
+1. **Seed test data:**
 ```bash
-cd prisma
-npx prisma studio
+npx prisma db seed
 ```
-Open Prisma Studio, find or create a User, set `trackerApiKey` to something like `vt_test123`. Also create an Organization and Membership for that user.
+This creates a test VA user with API key `vt_test123`, an organization, 2 projects, and 6 tasks.
 
 2. **Create the config file** the agent reads on startup:
 ```
@@ -131,49 +220,64 @@ cd agent && npm run dev
 | Workspace | Script | Description |
 |-----------|--------|-------------|
 | root | `npm install` | Install all workspaces |
+| root | `npx prisma db seed` | Seed test data (1 user, 1 org, 2 projects, 6 tasks) |
 | web | `npm run dev` | Start Next.js dev server (port 3000) |
 | web | `npm run build` | Production build |
 | agent | `npm run dev` | Start Electron in dev mode |
 | agent | `npm run build` | Compile main + preload + renderer |
 | agent | `npm run build:agent` | Build + package Windows installer |
 | agent | `npm run typecheck` | Type-check main + preload |
+| agent | `npm run publish:agent` | Build + publish to GitHub Releases (requires GH_TOKEN) |
 
-## API Routes
+## API Reference
 
-All routes require API key Bearer token in the Authorization header: `Authorization: Bearer vt_...`
+All 13 routes require API key Bearer token in the Authorization header: `Authorization: Bearer vt_...`
+
+### Auth & Config
 
 | Method | Route | Description |
 |--------|-------|-------------|
 | POST | /api/auth/register | Create user + membership (admin only) |
-| POST | /api/sync | Receive batched activity data from agent |
+| GET | /api/tracker/ping | Validate API key, returns `{ status, userId }` |
+| GET | /api/tracker/config | Returns org settings for the authenticated VA |
+
+### Sync & Data
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | /api/sync | Receive batched activity data from agent (time entries, activity snapshots, window samples, screenshot metadata) |
+| GET | /api/time-entries | Query time entries (date/user/project filters) |
+| GET | /api/activity | Query activity snapshots (date range) |
+| GET | /api/dashboard/live | Live VA tracking status for dashboard |
+
+### Screenshots
+
+| Method | Route | Description |
+|--------|-------|-------------|
 | POST | /api/screenshots/presign | Get presigned upload URL for Supabase Storage |
+| GET | /api/screenshots | Query screenshot metadata (paginated, org-scoped) |
+| DELETE | /api/screenshots/[id] | Soft-delete screenshot (VA only, 24h window) |
+
+### Projects & Tasks
+
+| Method | Route | Description |
+|--------|-------|-------------|
 | GET | /api/projects | List projects with tasks (org-scoped) |
 | POST | /api/projects | Create project |
 | POST | /api/projects/[id]/tasks | Create task under project |
 | PATCH | /api/tasks/[id] | Update task status or title |
-| GET | /api/time-entries | Query time entries (date/user/project filters) |
-| GET | /api/activity | Query activity snapshots (date range) |
-| GET | /api/screenshots | Query screenshot metadata (paginated) |
-| DELETE | /api/screenshots/[id] | Soft-delete screenshot (VA only, 24h window) |
-| GET | /api/dashboard/live | Live VA status for dashboard |
-| GET | /api/tracker/ping | Validate API key, returns `{ status, userId }` |
-| GET | /api/tracker/config | Returns org settings for the authenticated VA |
 
-### GET /api/tracker/ping
+### Key Endpoint Details
 
-Health check and API key validation.
-
-**Response (200):**
+**GET /api/tracker/ping** -- Health check and API key validation.
 ```json
+// Response (200):
 { "status": "ok", "userId": "clu..." }
 ```
 
-### GET /api/tracker/config
-
-Returns organization settings for the agent. The agent calls this on startup to fetch tracking configuration.
-
-**Response (200):**
+**GET /api/tracker/config** -- Returns organization settings for the agent.
 ```json
+// Response (200):
 {
   "userId": "clu...",
   "orgId": "clu...",
@@ -184,14 +288,53 @@ Returns organization settings for the agent. The agent calls this on startup to 
   "trackUrls": true
 }
 ```
+Response (404): `{ "error": "No active organization" }` -- user has no active membership.
 
-**Response (404):** `{ "error": "No active organization" }` -- user has no active membership.
+**POST /api/sync** -- Receives batched activity data from the agent. Payload:
+```json
+{
+  "timeEntries": [...],
+  "activitySnapshots": [...],
+  "windowSamples": [...],
+  "screenshots": [...]
+}
+```
+Uses idempotency keys for deduplication. Child records (activitySnapshots, windowSamples, screenshots) reference their parent TimeEntry via `timeEntryIdempotencyKey`, which the server resolves to the actual DB ID.
 
 ## Database Models
 
 10 Prisma models: User, Organization, Membership, Project, Task, TaskAssignment, TimeEntry, ActivitySnapshot, Screenshot, WindowSample
 
 See `prisma/schema.prisma` for full schema.
+
+## Troubleshooting
+
+### No projects showing
+Run the seed script to create test data:
+```bash
+npx prisma db seed
+```
+Or create projects manually via `POST /api/projects` with a valid API key.
+
+### Sync failing with Zod error
+Check Vercel function logs. Common cause: the agent sends `taskId: null` for taskless time entries. The Zod schema must use `z.string().nullable().optional()` (not just `z.string().optional()`). This fix was applied during WorkSpace testing.
+
+### App not auto-launching on reboot
+Check the Windows Registry for the auto-launch entry:
+```
+HKCU\Software\Microsoft\Windows\CurrentVersion\Run
+```
+Look for a "Valerie Tracker" entry. If missing, the auto-launch module may not have run on first launch.
+
+### Screenshots not uploading
+Verify the "screenshots" bucket exists in your Supabase Storage dashboard (must be private, not public). The agent gets a presigned URL from `/api/screenshots/presign` and uploads directly to Supabase Storage.
+
+### Config not found
+Verify the config file exists and is valid JSON:
+```
+C:\ProgramData\ValerieTracker\config.json
+```
+The file must contain at minimum `apiBaseUrl` and `apiKey`. Check that the directory exists (`C:\ProgramData\ValerieTracker\`) and the file is readable.
 
 ## Design System
 
@@ -211,3 +354,4 @@ Dashboard UI has been stripped from web/ (production dashboard lives in va-platf
 | Screenshots | screenshot-desktop + sharp (WebP) |
 | Window tracking | @miniben90/x-win |
 | Packaging | electron-builder (NSIS) |
+| Auto-update | electron-updater (GitHub Releases) |
