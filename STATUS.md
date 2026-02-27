@@ -45,7 +45,7 @@ All 13 API routes implemented with API key auth (validateApiKey), Zod validation
 
 ## Phase 3: Electron Agent -- DONE
 
-13 main process modules + preload + renderer (3 screens).
+15 main process modules + preload + renderer (3 screens).
 
 | Module | File | Status |
 |--------|------|--------|
@@ -62,6 +62,7 @@ All 13 API routes implemented with API key auth (validateApiKey), Zod validation
 | Sync engine | sync.ts | Done -- 60s batch + screenshot upload |
 | System tray | tray.ts | Done -- green/gray icons, context menu |
 | Auto-launch | auto-launch.ts | Done -- Windows Registry Run key |
+| Auto-updater | auto-updater.ts | Done -- electron-updater, GitHub Releases, 4h check interval |
 | IPC handlers | ipc.ts | Done -- contextBridge API |
 
 **Renderer screens:** LoginScreen (--dev only), MainScreen (project list + timer), IdleDialog, ErrorScreen (not-configured / key-invalid)
@@ -158,8 +159,8 @@ valerie-tracker/
     lib/                    -- auth.ts, prisma.ts, supabase-server.ts (supabase-browser.ts + auth-helpers.ts deleted)
 
   agent/src/
-    main/                   -- 14 modules (entry, config, tracker-config, auth, db, timer, activity,
-                               window-tracker, screenshot, idle, sync, tray, auto-launch, ipc)
+    main/                   -- 15 modules (entry, config, tracker-config, auth, db, timer, activity,
+                               window-tracker, screenshot, idle, sync, tray, auto-launch, auto-updater, ipc)
     preload/                -- contextBridge (auth, timer, projects, config, idle, app)
     renderer/               -- App, main, index.html
     renderer/screens/       -- Login (--dev only), Main, IdleDialog, ErrorScreen
@@ -231,6 +232,7 @@ Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), c
 - No automated tests yet -- manual testing of agent-to-web sync flow required
 - Code signing skipped (signAndEditExecutable: false) -- not needed for WorkSpaces, can add later if distributing externally
 - Supabase Storage "screenshots" bucket must be created manually (private)
-- electron-updater dependency present but not configured with a publish target
+- electron-updater configured for GitHub Releases (publish: github, owner: chickenparmesean, repo: valerie-tracker)
+- To publish a release: set GH_TOKEN env var (repo scope), run `npm run publish:agent` from agent/
 - Dashboard UI stripped per INTEGRATION-GUIDE.md -- production dashboard lives in va-platform repo
 - Placeholder icon.ico should be replaced with real branding when available

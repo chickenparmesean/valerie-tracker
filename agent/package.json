@@ -10,6 +10,7 @@
     "dev": "concurrently \"vite\" \"tsc -p tsconfig.main.json --watch\" \"tsc -p tsconfig.preload.json --watch\" \"wait-on dist-main/index.js && cross-env NODE_ENV=development electron .\"",
     "build": "vite build && tsc -p tsconfig.main.json && tsc -p tsconfig.preload.json",
     "build:agent": "npm run build && electron-builder --win",
+    "publish:agent": "npm run build && electron-builder --win --publish always",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit"
   },
   "dependencies": {

@@ -33,5 +33,8 @@ nsis:
   createStartMenuShortcut: true
 electronLanguages: [en]
 publish:
-  provider: generic
-  url: https://valerie-tracker-updates.s3.amazonaws.com
+  provider: github
+  owner: chickenparmesean
+  repo: valerie-tracker
+  # GH_TOKEN env var required at publish time only (needs 'repo' scope)
+  # Runtime update checks use public GitHub Releases API (no token needed)

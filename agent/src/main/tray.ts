@@ -1,5 +1,6 @@
 import { Tray, Menu, nativeImage, BrowserWindow } from 'electron';
 import { getTimerState, startTimer, stopTimer } from './timer';
+import { checkForUpdatesManually } from './auto-updater';
 
 let tray: Tray | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -90,6 +91,13 @@ export function updateTrayMenu(): void {
         mainWindow?.focus();
       },
     },
+    {
+      label: 'Check for Updates',
+      click: () => {
+        checkForUpdatesManually();
+      },
+    },
+    { type: 'separator' },
     {
       label: 'Quit',
       click: () => {

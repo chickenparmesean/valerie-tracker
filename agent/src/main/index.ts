@@ -26,6 +26,7 @@ import { startWindowTracking, stopWindowTracking } from './window-tracker';
 import { setIdleWindow, startIdleDetection, stopIdleDetection } from './idle-detector';
 import { startSyncEngine, stopSyncEngine } from './sync';
 import { enableAutoLaunch } from './auto-launch';
+import { initAutoUpdater, stopAutoUpdater } from './auto-updater';
 
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
@@ -122,6 +123,11 @@ app.whenReady().then(async () => {
 
   // Auto-launch on Windows
   enableAutoLaunch();
+
+  // Auto-update from GitHub Releases (skip in dev mode)
+  if (!isDevMode) {
+    initAutoUpdater();
+  }
 });
 
 function startEngines(): void {
@@ -139,6 +145,7 @@ app.on('before-quit', () => {
   stopScreenshotSchedule();
   stopIdleDetection();
   stopSyncEngine();
+  stopAutoUpdater();
   destroyTray();
 });
 

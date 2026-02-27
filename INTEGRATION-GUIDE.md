@@ -314,6 +314,7 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 11 | Add error screen for "tracker not configured" | DONE |
 | 12 | Deploy standalone `web/` to Vercel for testing | DONE |
 | 13 | Build NSIS installer | DONE |
+| 13a | Add electron-updater auto-update (GitHub Releases, tray menu, 4h checks) | DONE |
 | 14 | Test on real AWS WorkSpace (all 12 items in Testing Priority) | TODO |
 | 15 | Fix any native module / compatibility issues found during testing | TODO |
 | 16 | Verify screenshot capture + upload end-to-end | TODO |
@@ -337,5 +338,39 @@ The agent now uses API key auth from config.json with safeStorage caching. The i
 11. If offline but cached key + settings exist --> start tracking with cached settings
 
 LoginScreen is preserved behind `--dev` flag for development with Supabase Auth.
+
+### Auto-Update via GitHub Releases -- COMPLETE (task 13a)
+
+The agent now auto-updates from GitHub Releases using electron-updater.
+
+**How it works:**
+1. On startup (non-dev mode), calls `autoUpdater.checkForUpdatesAndNotify()`
+2. Rechecks every 4 hours via setInterval
+3. Downloads updates silently in the background
+4. Shows OS notification: "Update ready -- will install on next restart"
+5. Installs on next natural app quit (`autoInstallOnAppQuit = true`)
+6. Never force-quits the user mid-work
+7. Tray menu has "Check for Updates" item for manual checks
+8. All events logged with `[AutoUpdater]` prefix
+
+**Files changed:**
+- `agent/src/main/auto-updater.ts` -- new module (init, manual check, cleanup)
+- `agent/src/main/index.ts` -- calls initAutoUpdater() after app ready (non-dev only)
+- `agent/src/main/tray.ts` -- "Check for Updates" menu item above "Quit"
+- `agent/electron-builder.yml` -- publish provider changed from generic/S3 to github
+- `agent/package.json` -- added `publish:agent` script
+
+**Publishing a release:**
+```bash
+# Set GH_TOKEN with repo scope (one-time setup)
+export GH_TOKEN="ghp_your_token_here"
+
+# Bump version in agent/package.json, then:
+cd agent
+npm run publish:agent
+```
+This builds the NSIS installer and uploads it as a GitHub Release with `latest.yml` metadata. Running agents will detect it within 4 hours (or immediately if user clicks "Check for Updates").
+
+**GH_TOKEN is needed ONLY at publish time.** The agent checks for updates using the public GitHub Releases API -- no token needed at runtime.
 
 **When all 18 items are done, hand it back to the va-platform project for integration.**
