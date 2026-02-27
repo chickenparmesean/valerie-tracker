@@ -70,20 +70,27 @@ export function isTrackerReady(): boolean {
 export async function initTrackerConfig(): Promise<TrackerInitResult> {
   lastError = null;
 
-  // Step 1: Try to load from safeStorage cache
-  let apiKey: string | null = loadCachedApiKey();
-  let apiBaseUrl: string | null = loadCachedApiBaseUrl();
-  let localConfig: TrackerConfigFile | null = null;
+  // Always read config.json first — it's the source of truth when present.
+  // This ensures admin changes to config.json (e.g. new apiBaseUrl) take
+  // effect immediately instead of being masked by stale safeStorage cache.
+  let localConfig: TrackerConfigFile | null = readConfigFile();
+  let apiKey: string | null = null;
+  let apiBaseUrl: string | null = null;
 
-  // Step 2: If no cached key, read config.json
-  if (!apiKey) {
-    localConfig = readConfigFile();
-    if (!localConfig) {
-      lastError = 'not-configured';
-      return { status: 'not-configured' };
-    }
+  if (localConfig) {
+    // config.json exists — use its values (overrides any cache)
     apiKey = localConfig.apiKey;
     apiBaseUrl = localConfig.apiBaseUrl;
+  } else {
+    // No config.json — fall back to safeStorage cache (admin may have
+    // deleted config.json after first run for security)
+    apiKey = loadCachedApiKey();
+    apiBaseUrl = loadCachedApiBaseUrl();
+  }
+
+  if (!apiKey) {
+    lastError = 'not-configured';
+    return { status: 'not-configured' };
   }
 
   // At this point apiKey is guaranteed non-null

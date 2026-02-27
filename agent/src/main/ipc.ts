@@ -43,15 +43,24 @@ export function registerIpcHandlers(): void {
   // Projects — fetch from API
   ipcMain.handle('projects:list', async () => {
     const headers = getAuthHeaders();
-    if (!headers) return [];
+    if (!headers) {
+      console.log('projects:list — no auth headers, returning []');
+      return [];
+    }
 
     try {
-      const res = await fetch(`${config.apiBaseUrl}/api/projects`, {
-        headers,
-      });
-      if (!res.ok) return [];
-      return await res.json();
-    } catch {
+      const url = `${config.apiBaseUrl}/api/projects`;
+      console.log(`projects:list — fetching ${url}`);
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        console.log(`projects:list — HTTP ${res.status}`);
+        return [];
+      }
+      const data = await res.json();
+      console.log(`projects:list — got ${Array.isArray(data) ? data.length : 0} projects`);
+      return data;
+    } catch (err) {
+      console.log(`projects:list — error: ${err}`);
       return [];
     }
   });
