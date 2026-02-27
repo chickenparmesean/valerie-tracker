@@ -157,7 +157,7 @@ export default function MainScreen({ onLogout }: Props) {
       <div style={styles.header}>
         <div style={styles.logoRow}>
           <div style={styles.logoMark}>V</div>
-          <span style={styles.logoText}>Valerie Tracker</span>
+          <span style={styles.logoText}>Valerie Agent</span>
         </div>
       </div>
 
