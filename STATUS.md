@@ -1,11 +1,11 @@
 # Valerie Tracker -- Build Status
 
 Last updated: 2026-02-27
-Branch: staging (18 commits)
+Branch: staging (19 commits)
 
-## Overall Status: Auth Swap Complete -- Ready for Deploy + Test
+## Overall Status: Vercel Deployed -- Ready for Installer + Test
 
-All 6 build phases completed. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-11 done). Next: deploy web/ to Vercel, build installer, test on AWS WorkSpace.
+All 6 build phases completed. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-11 done). web/ deployed to Vercel (task 12 done). Next: build NSIS installer, test on AWS WorkSpace.
 
 ---
 
@@ -92,6 +92,21 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Env loading | 8937ace | Added dotenv with multi-path fallback in agent entry point |
 | Config fallbacks | 8937ace | config.ts checks both SUPABASE_URL and NEXT_PUBLIC_SUPABASE_URL |
 | Dev script | e66f288 | Added preload tsc --watch + cross-env NODE_ENV=development for Vite HMR |
+| Vercel prep | 526be1b | postinstall prisma generate, prisma to deps, transpilePackages: shared |
+
+## Deployment
+
+| Item | Detail |
+|------|--------|
+| Platform | Vercel (serverless) |
+| Production URL | https://valerie-tracker-web.vercel.app |
+| Deploy source | staging branch (auto-deploys on push) |
+| Build time | ~55s |
+| API routes | All 13 routes working on Vercel serverless |
+| Verified endpoints | /api/tracker/ping, /api/tracker/config (tested via PowerShell) |
+| Root directory | web/ (configured in Vercel dashboard) |
+| Prisma | postinstall script generates client during Vercel install step |
+| Note | Vercel Deployment Protection is on by default for Pro accounts -- must be disabled or set to preview-only for agent access |
 
 ---
 
@@ -145,6 +160,7 @@ valerie-tracker/
 | 9 | Remove LoginScreen as default (keep behind --dev flag) | DONE (2026-02-26) |
 | 10 | Add config.json reading + safeStorage caching to agent startup | DONE (2026-02-26) |
 | 11 | Add error screen for "tracker not configured" | DONE (2026-02-26) |
+| 12 | Deploy standalone web/ to Vercel for testing | DONE (2026-02-27) |
 
 **Tasks 1-3:** Dashboard UI stripped from web/ -- all pages, components, layout wrappers, design tokens, and fonts removed. Root layout rewritten to bare `<html><body>{children}</body></html>`. Root page replaced with simple "Valerie Tracker API" stub.
 
@@ -171,20 +187,21 @@ Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), c
 
 **Task 11:** ErrorScreen.tsx with two states: "not configured" (no config.json, no cached key) and "key invalid" (401 from ping). Retry button re-runs initTrackerConfig. Preload bridge updated with config:retry, config:getState, onConfigReady, onConfigError. App.tsx updated with screen routing (loading/login/main/error).
 
+**Task 12:** web/ deployed to Vercel at https://valerie-tracker-web.vercel.app. Build config: postinstall script for prisma generate (--schema=../prisma/schema.prisma), prisma moved from devDependencies to dependencies, transpilePackages: ['shared'] in next.config.ts. Auto-deploys from staging branch. 55s build time. All 13 API routes verified working on Vercel serverless. Ping and config endpoints confirmed via PowerShell.
+
 ---
 
 ## Known Issues / Next Steps
 
-**All auth work complete (tasks 1-11).** Web API uses API key auth. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. ErrorScreen for misconfigured agents. LoginScreen preserved behind --dev flag.
+**Auth work complete (tasks 1-11). Vercel deployment complete (task 12).** Web API uses API key auth, deployed to https://valerie-tracker-web.vercel.app with auto-deploys from staging. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. ErrorScreen for misconfigured agents. LoginScreen preserved behind --dev flag.
 
-**Next: Deploy and test (tasks 12-18)**
-1. Deploy standalone web/ to Vercel for testing (task 12)
-2. Build NSIS installer (task 13)
-3. Test on real AWS WorkSpace -- all 12 items in Testing Priority (task 14)
-4. Fix native module / compatibility issues (task 15)
-5. Verify screenshot capture + upload end-to-end (task 16)
-6. Verify sync engine end-to-end (task 17)
-7. Package final working installer for golden image (task 18)
+**Next: Build installer and test (tasks 13-18)**
+1. Build NSIS installer (task 13)
+2. Test on real AWS WorkSpace -- all 12 items in Testing Priority (task 14)
+3. Fix native module / compatibility issues (task 15)
+4. Verify screenshot capture + upload end-to-end (task 16)
+5. Verify sync engine end-to-end (task 17)
+6. Package final working installer for golden image (task 18)
 
 **Standing items:**
 - No automated tests yet -- manual testing of agent-to-web sync flow required
