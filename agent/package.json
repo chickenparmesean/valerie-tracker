@@ -5,7 +5,7 @@
   "main": "dist-main/index.js",
   "scripts": {
     "postinstall": "electron-rebuild",
-    "dev": "concurrently \"vite\" \"tsc -p tsconfig.main.json --watch\" \"wait-on dist-main/index.js && electron .\"",
+    "dev": "concurrently \"vite\" \"tsc -p tsconfig.main.json --watch\" \"tsc -p tsconfig.preload.json --watch\" \"wait-on dist-main/index.js && cross-env NODE_ENV=development electron .\"",
     "build": "vite build && tsc -p tsconfig.main.json && tsc -p tsconfig.preload.json",
     "build:agent": "npm run build && electron-builder --win",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit"
@@ -28,6 +28,7 @@
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "concurrently": "^9.1.0",
+    "cross-env": "^10.1.0",
     "electron": "^34.0.0",
     "electron-builder": "^25.1.0",
     "react": "^19.0.0",
