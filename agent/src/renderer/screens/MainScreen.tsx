@@ -434,7 +434,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   timerDisplay: {
     fontFamily: "'DM Mono', monospace",
-    fontSize: 32,
+    fontSize: 16,
     fontWeight: 300,
     letterSpacing: 2,
     marginBottom: 12,
