@@ -49,7 +49,7 @@ export function registerIpcHandlers(): void {
     }
 
     try {
-      const url = `${config.apiBaseUrl}/api/projects`;
+      const url = `${config.apiBaseUrl}/api/tracker/projects`;
       console.log(`projects:list — fetching ${url}`);
       const res = await fetch(url, { headers });
       if (!res.ok) {
@@ -140,7 +140,7 @@ export function registerIpcHandlers(): void {
     if (!headers) return { success: false, error: 'Not authenticated' };
 
     try {
-      const res = await fetch(`${config.apiBaseUrl}/api/projects/${projectId}/tasks`, {
+      const res = await fetch(`${config.apiBaseUrl}/api/tracker/projects/${projectId}/tasks`, {
         method: 'POST',
         headers: {
           ...headers,

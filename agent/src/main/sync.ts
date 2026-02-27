@@ -60,7 +60,7 @@ async function syncBatch(authHeaders: Record<string, string>): Promise<void> {
   }
 
   try {
-    const res = await fetch(`${config.apiBaseUrl}/api/sync`, {
+    const res = await fetch(`${config.apiBaseUrl}/api/tracker/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -92,7 +92,7 @@ async function uploadScreenshots(authHeaders: Record<string, string>): Promise<v
       const metadata = JSON.parse(ss.metadata);
 
       // Get presigned URL
-      const presignRes = await fetch(`${config.apiBaseUrl}/api/screenshots/presign`, {
+      const presignRes = await fetch(`${config.apiBaseUrl}/api/tracker/screenshots/presign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
