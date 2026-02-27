@@ -37,7 +37,7 @@ The MVP one-shot built a full standalone dashboard in `web/`. **All of that UI i
 
 ### KEEP these in `web/` (API layer only):
 
-- `web/src/app/api/` — all 12 API route files (auth/register, sync, screenshots/presign, screenshots, screenshots/[id], projects, projects/[id]/tasks, tasks/[id], time-entries, activity, dashboard/live)
+- `web/src/app/api/` — all 13 API route files (auth/register, sync, screenshots/presign, screenshots, screenshots/[id], projects, projects/[id]/tasks, tasks/[id], time-entries, activity, dashboard/live, tracker/ping, tracker/config)
 - `web/src/lib/auth.ts` — auth middleware (will be rewritten for API key, but keep the file)
 - `web/src/lib/supabase.ts` — Supabase client (needed for Storage presigned URLs)
 - `web/src/lib/prisma.ts` — Prisma client
@@ -64,7 +64,7 @@ valerie-tracker/
 ├── web/                ← API ONLY (all UI deleted)
 │   └── src/
 │       ├── app/
-│       │   ├── api/    ← 12 route files (KEEP)
+│       │   ├── api/    ← 13 route files (KEEP)
 │       │   ├── layout.tsx  ← bare skeleton (rewrite)
 │       │   └── page.tsx    ← "Valerie Tracker API" (rewrite)
 │       └── lib/

@@ -1,5 +1,11 @@
 # Valerie Tracker — MVP Project Plan
 
+> **Note (2026-02-26):** This is the original build plan. Some sections are now stale:
+> - **Auth** has been swapped from Supabase Auth (JWT) to API key auth (`Bearer vt_...`). See INTEGRATION-GUIDE.md for current auth design.
+> - **Web dashboard** (Phase 4) has been removed. Production dashboard lives in va-platform repo. The web/ folder is now a headless API server only.
+> - **API routes** now include `/api/tracker/ping` and `/api/tracker/config` (not in original plan).
+> - See STATUS.md for current build status and INTEGRATION-GUIDE.md for the active task checklist.
+
 ## Overview
 
 Valerie Tracker is a lightweight Hubstaff replacement that provides time tracking, screenshot capture, activity monitoring, and task management for virtual assistants. It consists of:

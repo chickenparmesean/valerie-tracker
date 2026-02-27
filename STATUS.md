@@ -1,7 +1,7 @@
 # Valerie Tracker -- Build Status
 
 Last updated: 2026-02-26
-Branch: staging (8 commits)
+Branch: staging (16 commits)
 
 ## Overall Status: MVP COMPLETE -- Ready for Testing
 
@@ -23,7 +23,7 @@ All 6 build phases completed. Web dashboard builds successfully. Electron agent 
 
 ## Phase 2: API Routes -- DONE
 
-All 12 routes implemented with API key auth (validateApiKey), Zod validation, and proper error handling. Plus /api/tracker/ping health check.
+All 13 API routes implemented with API key auth (validateApiKey), Zod validation, and proper error handling. Includes /api/tracker/ping and /api/tracker/config agent endpoints.
 
 | Route | Method | Status |
 |-------|--------|--------|
@@ -114,7 +114,7 @@ valerie-tracker/
     schema.prisma           -- 10 models, 5 enums
 
   web/src/
-    app/api/                -- 11 route files (KEPT)
+    app/api/                -- 13 route files (11 original + tracker/ping + tracker/config)
     app/layout.tsx          -- bare skeleton
     app/page.tsx            -- API stub
     lib/                    -- auth.ts, prisma.ts, supabase-server.ts (supabase-browser.ts + auth-helpers.ts deleted)
@@ -133,10 +133,15 @@ valerie-tracker/
 
 | # | Task | Status |
 |---|------|--------|
+| 1 | Delete all dashboard UI from web/ | DONE (2026-02-26) |
+| 2 | Rewrite web/ root layout to bare skeleton | DONE (2026-02-26) |
+| 3 | Rewrite web/ root page to "Valerie Tracker API" | DONE (2026-02-26) |
 | 5 | Add `trackerApiKey` field to standalone User model | DONE (2026-02-26) |
 | 6 | Replace Supabase JWT middleware with API key lookup in all routes | DONE (2026-02-26) |
 | 7 | Add `GET /api/tracker/ping` endpoint | DONE (2026-02-26) |
 | 8 | Add `GET /api/tracker/config` endpoint | DONE (2026-02-26) |
+
+**Tasks 1-3:** Dashboard UI stripped from web/ -- all pages, components, layout wrappers, design tokens, and fonts removed. Root layout rewritten to bare `<html><body>{children}</body></html>`. Root page replaced with simple "Valerie Tracker API" stub.
 
 **Task 5:** Field added: `trackerApiKey String? @unique` on User model. Applied via `prisma db push`. Prisma client regenerated.
 
@@ -150,9 +155,23 @@ valerie-tracker/
 
 ## Known Issues / Next Steps
 
-1. **Testing needed:** No automated tests yet. Manual testing of agent-to-web sync flow required.
-2. **Code signing:** electron-builder.yml has placeholder for Windows code signing certificate.
-3. **Production deployment:** Web app not yet deployed (Vercel recommended).
-4. **Supabase Storage bucket:** Must be created manually in Supabase dashboard (name: "screenshots", private).
-5. **Auto-updater:** electron-updater dependency present but not configured with a publish target.
-6. **Dashboard UI stripped** per INTEGRATION-GUIDE.md -- production dashboard lives in va-platform repo.
+**Next up: Agent auth swap (tasks 4, 9-11)**
+- Task 4: Swap agent auth from Supabase Auth to API key + config.json
+- Task 9: Remove LoginScreen as default (keep behind --dev flag)
+- Task 10: Add config.json reading + safeStorage caching to agent startup
+- Task 11: Add error screen for "tracker not configured"
+
+**Then: Deploy and test (tasks 12-18)**
+1. Deploy standalone web/ to Vercel for testing
+2. Build NSIS installer
+3. Test on real AWS WorkSpace (all 12 items in Testing Priority)
+4. Fix native module / compatibility issues
+5. Verify screenshot capture + upload and sync engine end-to-end
+6. Package final working installer
+
+**Standing items:**
+- No automated tests yet -- manual testing of agent-to-web sync flow required
+- electron-builder.yml has placeholder for Windows code signing certificate
+- Supabase Storage "screenshots" bucket must be created manually (private)
+- electron-updater dependency present but not configured with a publish target
+- Dashboard UI stripped per INTEGRATION-GUIDE.md -- production dashboard lives in va-platform repo

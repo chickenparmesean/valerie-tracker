@@ -1,6 +1,6 @@
 # Valerie Tracker
 
-A Hubstaff-replacement time tracker for virtual assistants. Two apps: Electron desktop agent + Next.js web dashboard, backed by Supabase.
+A Hubstaff-replacement time tracker for virtual assistants. Electron desktop agent + Next.js API server (headless, no dashboard UI), backed by Supabase.
 
 ## Architecture
 
@@ -8,7 +8,7 @@ A Hubstaff-replacement time tracker for virtual assistants. Two apps: Electron d
 valerie-tracker/
   shared/    -- Shared TypeScript types and enums
   prisma/    -- Database schema (Prisma ORM)
-  web/       -- Next.js 15 dashboard with 12 API routes
+  web/       -- Next.js 15 headless API server with 13 routes
   agent/     -- Electron desktop app (Windows)
 ```
 
@@ -92,7 +92,7 @@ This runs `vite build` + `tsc` for main/preload + `electron-builder --win`. The 
 
 ## API Routes
 
-All routes require JWT Bearer token in the Authorization header.
+All routes require API key Bearer token in the Authorization header: `Authorization: Bearer vt_...`
 
 | Method | Route | Description |
 |--------|-------|-------------|
@@ -108,6 +108,36 @@ All routes require JWT Bearer token in the Authorization header.
 | GET | /api/screenshots | Query screenshot metadata (paginated) |
 | DELETE | /api/screenshots/[id] | Soft-delete screenshot (VA only, 24h window) |
 | GET | /api/dashboard/live | Live VA status for dashboard |
+| GET | /api/tracker/ping | Validate API key, returns `{ status, userId }` |
+| GET | /api/tracker/config | Returns org settings for the authenticated VA |
+
+### GET /api/tracker/ping
+
+Health check and API key validation.
+
+**Response (200):**
+```json
+{ "status": "ok", "userId": "clu..." }
+```
+
+### GET /api/tracker/config
+
+Returns organization settings for the agent. The agent calls this on startup to fetch tracking configuration.
+
+**Response (200):**
+```json
+{
+  "userId": "clu...",
+  "orgId": "clu...",
+  "screenshotFreq": 1,
+  "idleTimeoutMin": 5,
+  "blurScreenshots": false,
+  "trackApps": true,
+  "trackUrls": true
+}
+```
+
+**Response (404):** `{ "error": "No active organization" }` -- user has no active membership.
 
 ## Database Models
 
@@ -117,10 +147,7 @@ See `prisma/schema.prisma` for full schema.
 
 ## Design System
 
-- **Fonts:** DM Serif Display (headings), DM Sans (body), JetBrains Mono (numbers/timestamps)
-- **Colors:** Navy (#1A1A2E) sidebar, Gold (#C9A84C) accents, Bone (#F6F5F2) background
-- **Border radius:** 4px standard, 3px small, 5px medium
-- **Reference:** DESIGN-BRIEF.md (styling tokens only)
+Dashboard UI has been stripped from web/ (production dashboard lives in va-platform repo). The web/ folder is a headless API server only. See DESIGN-BRIEF.md for styling tokens reference (used by va-platform, not this project).
 
 ## Tech Stack
 
@@ -131,7 +158,7 @@ See `prisma/schema.prisma` for full schema.
 | Language | TypeScript (strict mode) |
 | Database | Supabase Postgres via Prisma |
 | Local database | SQLite via better-sqlite3 |
-| Auth | Supabase Auth (JWT) |
+| Auth | API key (Bearer vt_...) via trackerApiKey field |
 | Storage | Supabase Storage (presigned URLs) |
 | Screenshots | screenshot-desktop + sharp (WebP) |
 | Window tracking | @miniben90/x-win |
