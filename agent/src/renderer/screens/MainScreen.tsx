@@ -433,9 +433,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#5C5C6F',
   },
   timerDisplay: {
-    fontFamily: "'JetBrains Mono', monospace",
+    fontFamily: "'DM Mono', monospace",
     fontSize: 32,
-    fontWeight: 400,
+    fontWeight: 300,
     letterSpacing: 2,
     marginBottom: 12,
   },
