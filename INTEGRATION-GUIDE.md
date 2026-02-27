@@ -54,25 +54,25 @@ The MVP one-shot built a full standalone dashboard in `web/`. **All of that UI i
 ### KEEP in `prisma/`:
 - Schema file (will be modified for API key field, but keep it)
 
-### Result after cleanup:
+### Result after cleanup (current state):
 ```
 valerie-tracker/
-├── agent/              ← Electron app (UNTOUCHED)
-│   ├── src/main/       ← 13 modules
-│   ├── src/renderer/   ← LoginScreen, MainScreen, IdleDialog
-│   └── src/preload/    ← contextBridge
+├── agent/              ← Electron app (auth swap complete)
+│   ├── src/main/       ← 14 modules (added tracker-config.ts)
+│   ├── src/renderer/   ← LoginScreen (--dev only), MainScreen, IdleDialog, ErrorScreen
+│   └── src/preload/    ← contextBridge (auth, timer, projects, config, idle, app)
 ├── web/                ← API ONLY (all UI deleted)
 │   └── src/
 │       ├── app/
-│       │   ├── api/    ← 13 route files (KEEP)
-│       │   ├── layout.tsx  ← bare skeleton (rewrite)
-│       │   └── page.tsx    ← "Valerie Tracker API" (rewrite)
+│       │   ├── api/    ← 13 route files (API key auth)
+│       │   ├── layout.tsx  ← bare skeleton
+│       │   └── page.tsx    ← "Valerie Tracker API"
 │       └── lib/
-│           ├── auth.ts     ← middleware (KEEP, rewrite for API key)
-│           ├── prisma.ts   ← prisma client (KEEP)
-│           └── supabase.ts ← storage client (KEEP)
-├── prisma/             ← Schema (KEEP)
-├── shared/             ← Types (KEEP)
+│           ├── auth.ts     ← validateApiKey middleware
+│           ├── prisma.ts   ← prisma client
+│           └── supabase.ts ← storage client (presigned URLs)
+├── prisma/             ← Schema (trackerApiKey on User)
+├── shared/             ← Types
 └── .env
 ```
 
@@ -319,5 +319,23 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 16 | Verify screenshot capture + upload end-to-end | TODO |
 | 17 | Verify sync engine end-to-end | TODO |
 | 18 | Package final working installer ready for golden image | TODO |
+
+### Agent Auth Swap -- COMPLETE (tasks 4, 9-11)
+
+The agent now uses API key auth from config.json with safeStorage caching. The implemented startup sequence:
+
+1. Check Electron safeStorage for cached API key + apiBaseUrl
+2. If not cached, read `C:\ProgramData\ValerieTracker\config.json`
+3. Cache apiKey in safeStorage (encrypted via Windows DPAPI)
+4. Ping `GET /api/tracker/ping` to validate key
+5. If valid (200), fetch `GET /api/tracker/config` for server settings
+6. Merge settings (server wins over local config.json values)
+7. Cache merged settings for offline starts
+8. Show MainScreen and start tracking engines
+9. If key invalid (401) --> show ErrorScreen ("API key is invalid or revoked")
+10. If no config.json and no cached key --> show ErrorScreen ("Tracker not configured")
+11. If offline but cached key + settings exist --> start tracking with cached settings
+
+LoginScreen is preserved behind `--dev` flag for development with Supabase Auth.
 
 **When all 18 items are done, hand it back to the va-platform project for integration.**

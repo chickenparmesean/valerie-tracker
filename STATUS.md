@@ -1,11 +1,11 @@
 # Valerie Tracker -- Build Status
 
-Last updated: 2026-02-26
-Branch: staging (16 commits)
+Last updated: 2026-02-27
+Branch: staging (18 commits)
 
-## Overall Status: MVP COMPLETE -- Ready for Testing
+## Overall Status: Auth Swap Complete -- Ready for Deploy + Test
 
-All 6 build phases completed. Web dashboard builds successfully. Electron agent compiles and runs. Three post-build fixes applied (native modules, env loading, documentation).
+All 6 build phases completed. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-11 done). Next: deploy web/ to Vercel, build installer, test on AWS WorkSpace.
 
 ---
 
@@ -91,6 +91,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Native modules | bc67dff | Installed @electron/rebuild, fixed NODE_MODULE_VERSION mismatch |
 | Env loading | 8937ace | Added dotenv with multi-path fallback in agent entry point |
 | Config fallbacks | 8937ace | config.ts checks both SUPABASE_URL and NEXT_PUBLIC_SUPABASE_URL |
+| Dev script | e66f288 | Added preload tsc --watch + cross-env NODE_ENV=development for Vite HMR |
 
 ---
 
@@ -153,7 +154,7 @@ valerie-tracker/
 
 **Task 7:** New endpoint at /api/tracker/ping -- validates API key, returns `{ status: "ok", userId }` on success, 401 on invalid key. Agent calls this on startup to verify its key.
 
-**Task 8:** New endpoint at /api/tracker/config
+**Task 8:** New endpoint at /api/tracker/config -- validates API key, looks up user's active Membership with Organization, returns org settings (screenshotFreq, idleTimeoutMin, blurScreenshots, trackApps, trackUrls) plus userId and orgId. Returns 404 if no active membership.
 
 **Task 9:** LoginScreen gated behind --dev flag. Normal startup (no --dev) skips LoginScreen entirely and goes to config.json/safeStorage auth flow. process.argv checked in config.ts via isDevMode constant.
 
@@ -168,24 +169,22 @@ valerie-tracker/
 8. Offline behavior: if cached key + settings exist but server unreachable, starts tracking with cached settings
 Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), config.ts (isDevMode, dynamic apiBaseUrl), sync.ts (uses getAuthHeaders), ipc.ts (uses getAuthHeaders, added config:retry + config:state handlers), index.ts (dual startup flow)
 
-**Task 11:** ErrorScreen.tsx with two states: "not configured" (no config.json, no cached key) and "key invalid" (401 from ping). Retry button re-runs initTrackerConfig. Preload bridge updated with config:retry, config:getState, onConfigReady, onConfigError. App.tsx updated with screen routing (loading/login/main/error). -- validates API key, looks up user's active Membership with Organization included, returns org settings (screenshotFreq, idleTimeoutMin, blurScreenshots, trackApps, trackUrls) plus userId and orgId. Returns 404 if no active membership. Pure-function pattern: handleGetConfig(userId) called from GET handler.
+**Task 11:** ErrorScreen.tsx with two states: "not configured" (no config.json, no cached key) and "key invalid" (401 from ping). Retry button re-runs initTrackerConfig. Preload bridge updated with config:retry, config:getState, onConfigReady, onConfigError. App.tsx updated with screen routing (loading/login/main/error).
 
 ---
 
 ## Known Issues / Next Steps
 
-**Agent auth swap COMPLETE (tasks 9-11, 2026-02-26)**
-- Task 9: DONE -- LoginScreen gated behind --dev flag, normal mode skips to config.json auth
-- Task 10: DONE -- tracker-config.ts reads config.json, caches API key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings
-- Task 11: DONE -- ErrorScreen with "not configured" and "key invalid" states, retry button
+**All auth work complete (tasks 1-11).** Web API uses API key auth. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. ErrorScreen for misconfigured agents. LoginScreen preserved behind --dev flag.
 
 **Next: Deploy and test (tasks 12-18)**
-1. Deploy standalone web/ to Vercel for testing
-2. Build NSIS installer
-3. Test on real AWS WorkSpace (all 12 items in Testing Priority)
-4. Fix native module / compatibility issues
-5. Verify screenshot capture + upload and sync engine end-to-end
-6. Package final working installer
+1. Deploy standalone web/ to Vercel for testing (task 12)
+2. Build NSIS installer (task 13)
+3. Test on real AWS WorkSpace -- all 12 items in Testing Priority (task 14)
+4. Fix native module / compatibility issues (task 15)
+5. Verify screenshot capture + upload end-to-end (task 16)
+6. Verify sync engine end-to-end (task 17)
+7. Package final working installer for golden image (task 18)
 
 **Standing items:**
 - No automated tests yet -- manual testing of agent-to-web sync flow required

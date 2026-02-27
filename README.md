@@ -53,7 +53,7 @@ npx prisma db push --schema=prisma/schema.prisma
 
 ## Development
 
-### Web Dashboard
+### Web API Server
 ```bash
 cd web
 npm run dev
@@ -65,9 +65,17 @@ Opens at http://localhost:3000
 cd agent
 npm run dev
 ```
-Runs Vite (renderer) + TypeScript watch (main process) + Electron concurrently.
+Runs 4 concurrent processes:
+1. **Vite** -- renderer HMR dev server (localhost:5173)
+2. **tsc --watch** (tsconfig.main.json) -- main process watcher
+3. **tsc --watch** (tsconfig.preload.json) -- preload watcher
+4. **Electron** -- launches with `NODE_ENV=development` (connects to Vite HMR instead of loading dist-renderer/)
 
 The agent reads `.env` from the project root automatically via dotenv.
+
+**Dev mode vs Normal mode:**
+- `npm run dev` launches Electron with `--dev` flag not set -- it uses config.json auth by default
+- To test with the Supabase Auth LoginScreen, add `--dev` to the electron command in package.json
 
 ## Building the Agent Installer
 
@@ -77,6 +85,46 @@ npm run build:agent
 ```
 
 This runs `vite build` + `tsc` for main/preload + `electron-builder --win`. The NSIS installer outputs to `agent/dist/`.
+
+## Local Testing (Agent + API)
+
+To test the full agent-to-API flow locally:
+
+1. **Seed a test user** with a `trackerApiKey` in the database:
+```bash
+cd prisma
+npx prisma studio
+```
+Open Prisma Studio, find or create a User, set `trackerApiKey` to something like `vt_test123`. Also create an Organization and Membership for that user.
+
+2. **Create the config file** the agent reads on startup:
+```
+C:\ProgramData\ValerieTracker\config.json
+```
+```json
+{
+  "apiBaseUrl": "http://localhost:3000",
+  "apiKey": "vt_test123",
+  "vaId": "test-va-001",
+  "screenshotFreq": 1,
+  "idleTimeoutMin": 5,
+  "blurScreenshots": false,
+  "trackApps": true,
+  "trackUrls": true
+}
+```
+
+3. **Start the web API** in one terminal:
+```bash
+cd web && npm run dev
+```
+
+4. **Start the agent** in another terminal:
+```bash
+cd agent && npm run dev
+```
+
+5. **Expected behavior:** Agent reads config.json, pings `GET /api/tracker/ping` to validate the key, fetches `GET /api/tracker/config` for org settings, then shows MainScreen with projects. If the key is invalid, you'll see ErrorScreen.
 
 ## Scripts
 
