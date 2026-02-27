@@ -20,6 +20,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     retry: () => ipcRenderer.invoke('config:retry'),
     getState: () => ipcRenderer.invoke('config:state'),
   },
+  time: {
+    getTodayTotal: () => ipcRenderer.invoke('time:getTodayTotal') as Promise<number>,
+  },
+  tasks: {
+    create: (projectId: string, title: string) =>
+      ipcRenderer.invoke('tasks:create', projectId, title) as Promise<{ success: boolean; error?: string; task?: unknown }>,
+  },
   app: {
     minimize: () => ipcRenderer.invoke('app:minimize'),
     quit: () => ipcRenderer.invoke('app:quit'),

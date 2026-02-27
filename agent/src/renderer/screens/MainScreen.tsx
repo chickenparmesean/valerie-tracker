@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface Project {
   id: string;
@@ -29,9 +29,14 @@ export default function MainScreen({ onLogout }: Props) {
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [activeTask, setActiveTask] = useState<string | null>(null);
   const [note, setNote] = useState('');
+  const [todayTotalSec, setTodayTotalSec] = useState<number | null>(null);
+  const [addingTaskForProject, setAddingTaskForProject] = useState<string | null>(null);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const addTaskInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProjects();
+    fetchTodayTotal();
 
     window.electronAPI.onTimerUpdate((data) => {
       setTimerData(data as TimerUpdate);
@@ -41,6 +46,7 @@ export default function MainScreen({ onLogout }: Props) {
       setTimerData({ elapsedSec: 0, isRunning: false, activityPct: 0 });
       setActiveProject(null);
       setActiveTask(null);
+      fetchTodayTotal();
     });
 
     window.electronAPI.onScreenshotCaptured(() => {
@@ -59,21 +65,43 @@ export default function MainScreen({ onLogout }: Props) {
         setActiveTask(status.taskId);
       }
     });
+
+    // Poll today total every 30 seconds
+    const todayInterval = setInterval(fetchTodayTotal, 30_000);
+    return () => clearInterval(todayInterval);
   }, []);
+
+  // Focus the add-task input when it appears
+  useEffect(() => {
+    if (addingTaskForProject && addTaskInputRef.current) {
+      addTaskInputRef.current.focus();
+    }
+  }, [addingTaskForProject]);
 
   const loadProjects = async () => {
     const list = await window.electronAPI.projects.list();
     setProjects(list);
   };
 
+  const fetchTodayTotal = async () => {
+    try {
+      const totalSec = await window.electronAPI.time.getTodayTotal();
+      setTodayTotalSec(totalSec);
+    } catch {
+      setTodayTotalSec(null);
+    }
+  };
+
   const handlePlay = async (projectId: string, taskId?: string) => {
     await window.electronAPI.timer.start(projectId, taskId);
     setActiveProject(projectId);
     setActiveTask(taskId ?? null);
+    fetchTodayTotal();
   };
 
   const handleStop = async () => {
     await window.electronAPI.timer.stop();
+    fetchTodayTotal();
   };
 
   const handleLogout = async () => {
@@ -88,6 +116,12 @@ export default function MainScreen({ onLogout }: Props) {
     return `${String(h).padStart(2, '0')} : ${String(m).padStart(2, '0')} : ${String(s).padStart(2, '0')}`;
   };
 
+  const formatTodayTotal = (sec: number): string => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    return `Today: ${h}h ${m}m`;
+  };
+
   const getProjectName = (): string => {
     if (!activeProject) return '';
     const p = projects.find((p) => p.id === activeProject);
@@ -99,6 +133,24 @@ export default function MainScreen({ onLogout }: Props) {
     return p.name;
   };
 
+  const handleAddTask = async (projectId: string) => {
+    const title = newTaskTitle.trim();
+    if (!title) return;
+    try {
+      await window.electronAPI.tasks.create(projectId, title);
+      setAddingTaskForProject(null);
+      setNewTaskTitle('');
+      await loadProjects();
+    } catch {
+      // Silently fail — task stays in input for retry
+    }
+  };
+
+  const cancelAddTask = () => {
+    setAddingTaskForProject(null);
+    setNewTaskTitle('');
+  };
+
   return (
     <div style={styles.container}>
       {/* Header */}
@@ -107,7 +159,6 @@ export default function MainScreen({ onLogout }: Props) {
           <div style={styles.logoMark}>V</div>
           <span style={styles.logoText}>Valerie Tracker</span>
         </div>
-        <button onClick={handleLogout} style={styles.logoutBtn}>Sign Out</button>
       </div>
 
       {/* Projects */}
@@ -144,6 +195,41 @@ export default function MainScreen({ onLogout }: Props) {
                 </button>
               </div>
             ))}
+            {expanded[project.id] && (
+              addingTaskForProject === project.id ? (
+                <div style={styles.taskRow}>
+                  <input
+                    ref={addTaskInputRef}
+                    type="text"
+                    placeholder="Task name..."
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddTask(project.id);
+                      if (e.key === 'Escape') cancelAddTask();
+                    }}
+                    onBlur={() => {
+                      if (!newTaskTitle.trim()) cancelAddTask();
+                    }}
+                    style={styles.addTaskInput}
+                  />
+                  <button
+                    onClick={() => handleAddTask(project.id)}
+                    style={styles.addTaskConfirmBtn}
+                    title="Add task"
+                  >
+                    {'\u2713'}
+                  </button>
+                </div>
+              ) : (
+                <div
+                  style={styles.addTaskRow}
+                  onClick={() => setAddingTaskForProject(project.id)}
+                >
+                  <span style={styles.addTaskText}>+ Add task</span>
+                </div>
+              )
+            )}
           </div>
         ))}
         {projects.length === 0 && (
@@ -162,11 +248,11 @@ export default function MainScreen({ onLogout }: Props) {
             }}
           />
           <span style={styles.statusText}>
-            {timerData.isRunning ? `Recording -- ${getProjectName()}` : 'Not tracking'}
+            {timerData.isRunning ? `Working \u2014 ${getProjectName()}` : 'Not tracking'}
           </span>
         </div>
 
-        <div className="mono" style={styles.timerDisplay}>
+        <div style={styles.timerDisplay}>
           {formatTime(timerData.elapsedSec)}
         </div>
 
@@ -174,28 +260,6 @@ export default function MainScreen({ onLogout }: Props) {
           <button onClick={handleStop} style={styles.stopBtn}>
             STOP
           </button>
-        )}
-
-        {/* Activity bar */}
-        {timerData.isRunning && (
-          <div style={styles.activityRow}>
-            <span style={styles.activityLabel}>Activity:</span>
-            <div style={styles.activityTrack}>
-              <div
-                style={{
-                  ...styles.activityFill,
-                  width: `${timerData.activityPct}%`,
-                  background:
-                    timerData.activityPct > 85
-                      ? '#2D6A4F'
-                      : timerData.activityPct > 70
-                        ? '#B8982A'
-                        : '#9B2C2C',
-                }}
-              />
-            </div>
-            <span className="mono" style={styles.activityPct}>{timerData.activityPct}%</span>
-          </div>
         )}
       </div>
 
@@ -211,6 +275,13 @@ export default function MainScreen({ onLogout }: Props) {
           />
         </div>
       )}
+
+      {/* Today Total */}
+      <div style={styles.todaySection}>
+        <span style={styles.todayText}>
+          {todayTotalSec !== null ? formatTodayTotal(todayTotalSec) : 'Today: --'}
+        </span>
+      </div>
     </div>
   );
 }
@@ -220,6 +291,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     height: '100vh',
+    background: '#F8F7F5',
   },
   header: {
     display: 'flex',
@@ -227,7 +299,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     padding: '12px 16px',
     borderBottom: '1px solid #E2E1DC',
-    background: '#FFFFFF',
+    background: '#1A1A2E',
   },
   logoRow: {
     display: 'flex',
@@ -237,29 +309,21 @@ const styles: Record<string, React.CSSProperties> = {
   logoMark: {
     width: 22,
     height: 22,
-    background: 'rgba(184,152,42,0.18)',
+    background: 'rgba(255,255,255,0.18)',
     borderRadius: 4,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontFamily: 'Georgia, serif',
+    fontFamily: "'DM Sans', system-ui, sans-serif",
     fontSize: 13,
-    color: '#B8982A',
+    fontWeight: 600,
+    color: '#FFFFFF',
   },
   logoText: {
-    fontFamily: 'Georgia, serif',
-    fontSize: 15,
-    color: '#1A1A2E',
-  },
-  logoutBtn: {
-    background: 'none',
-    border: '1px solid #E2E1DC',
-    borderRadius: 4,
-    padding: '4px 10px',
-    fontSize: 11,
-    cursor: 'pointer',
-    color: '#5C5C6F',
     fontFamily: "'DM Sans', system-ui, sans-serif",
+    fontWeight: 600,
+    fontSize: 15,
+    color: '#FFFFFF',
   },
   projectList: {
     flex: 1,
@@ -309,6 +373,37 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     color: '#5C5C6F',
   },
+  addTaskRow: {
+    padding: '6px 16px 6px 44px',
+    cursor: 'pointer',
+  },
+  addTaskText: {
+    fontFamily: "'DM Sans', system-ui, sans-serif",
+    fontSize: 13,
+    color: '#8E8E9A',
+  },
+  addTaskInput: {
+    flex: 1,
+    padding: '4px 8px',
+    fontSize: 13,
+    fontFamily: "'DM Sans', system-ui, sans-serif",
+    border: '1px solid #E2E1DC',
+    borderRadius: 4,
+    outline: 'none',
+  },
+  addTaskConfirmBtn: {
+    background: 'none',
+    border: '1px solid #E2E1DC',
+    borderRadius: 4,
+    width: 28,
+    height: 28,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    fontSize: 14,
+    color: '#2D6A4F',
+  },
   emptyText: {
     textAlign: 'center',
     color: '#8E8E9A',
@@ -340,7 +435,7 @@ const styles: Record<string, React.CSSProperties> = {
   timerDisplay: {
     fontFamily: "'JetBrains Mono', monospace",
     fontSize: 28,
-    fontWeight: 500,
+    fontWeight: 400,
     letterSpacing: 2,
     marginBottom: 12,
   },
@@ -356,35 +451,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "'DM Sans', system-ui, sans-serif",
     marginBottom: 12,
   },
-  activityRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  activityLabel: {
-    fontSize: 12,
-    color: '#8E8E9A',
-  },
-  activityTrack: {
-    flex: 1,
-    height: 5,
-    background: '#F0EFEB',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  activityFill: {
-    height: '100%',
-    borderRadius: 3,
-    transition: 'width 0.3s',
-  },
-  activityPct: {
-    fontFamily: "'JetBrains Mono', monospace",
-    fontSize: 11,
-    color: '#5C5C6F',
-    minWidth: 32,
-    textAlign: 'right',
-  },
   noteSection: {
     borderTop: '1px solid #E2E1DC',
     padding: '10px 16px',
@@ -398,5 +464,16 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 4,
     outline: 'none',
     fontFamily: "'DM Sans', system-ui, sans-serif",
+  },
+  todaySection: {
+    borderTop: '1px solid #E2E1DC',
+    padding: '10px 16px',
+    background: '#F8F7F5',
+    textAlign: 'center',
+  },
+  todayText: {
+    fontFamily: "'DM Sans', system-ui, sans-serif",
+    fontSize: 13,
+    color: '#8E8E9A',
   },
 };

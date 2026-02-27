@@ -41,6 +41,12 @@ declare global {
         retry: () => Promise<{ status: string; error?: string | null }>;
         getState: () => Promise<{ ready: boolean; error?: string | null; mode: string }>;
       };
+      time: {
+        getTodayTotal: () => Promise<number>;
+      };
+      tasks: {
+        create: (projectId: string, title: string) => Promise<{ success: boolean; error?: string; task?: unknown }>;
+      };
       app: {
         minimize: () => Promise<void>;
         quit: () => Promise<void>;

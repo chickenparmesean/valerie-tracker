@@ -89,4 +89,65 @@ export function registerIpcHandlers(): void {
     const { app } = require('electron');
     return app.getVersion();
   });
+
+  // Today time total
+  ipcMain.handle('time:getTodayTotal', async () => {
+    const headers = getAuthHeaders();
+    if (!headers) return 0;
+
+    try {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      const dateStr = `${yyyy}-${mm}-${dd}`;
+
+      const res = await fetch(`${config.apiBaseUrl}/api/time-entries?date=${dateStr}`, {
+        headers,
+      });
+      if (!res.ok) return 0;
+      const entries: Array<{ durationSec?: number; startedAt?: string; stoppedAt?: string | null }> = await res.json();
+
+      let totalSec = 0;
+      const now = Date.now();
+      for (const entry of entries) {
+        if (entry.stoppedAt) {
+          totalSec += entry.durationSec ?? 0;
+        } else if (entry.startedAt) {
+          // Running entry — calculate elapsed from startedAt to now
+          const startMs = new Date(entry.startedAt).getTime();
+          totalSec += Math.max(0, Math.floor((now - startMs) / 1000));
+        }
+      }
+      return totalSec;
+    } catch {
+      return 0;
+    }
+  });
+
+  // Create task
+  ipcMain.handle('tasks:create', async (_event, projectId: string, title: string) => {
+    const headers = getAuthHeaders();
+    if (!headers) return { success: false, error: 'Not authenticated' };
+
+    try {
+      const res = await fetch(`${config.apiBaseUrl}/api/projects/${projectId}/tasks`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        return { success: false, error: text };
+      }
+      const data = await res.json();
+      return { success: true, task: data };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return { success: false, error: message };
+    }
+  });
 }

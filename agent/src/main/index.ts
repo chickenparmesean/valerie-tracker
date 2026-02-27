@@ -12,7 +12,7 @@ for (const envPath of envPaths) {
   if (!result.error) break;
 }
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Menu } from 'electron';
 import { isDevMode } from './config';
 import { initDatabase } from './database';
 import { initAuth, restoreSession, startAutoRefresh } from './auth';
@@ -69,6 +69,15 @@ function createWindow(): void {
 
   // Create system tray
   createTray(mainWindow);
+
+  // Set application menu without Help
+  const menuTemplate: Electron.MenuItemConstructorOptions[] = [
+    { role: 'fileMenu' },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 }
 
 app.whenReady().then(async () => {
