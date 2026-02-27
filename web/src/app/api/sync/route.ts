@@ -14,7 +14,7 @@ const syncTimeEntrySchema = z.object({
   status: z.enum(['RUNNING', 'STOPPED', 'IDLE_PAUSED', 'SYNCED']),
   note: z.string().optional(),
   projectId: z.string().min(1),
-  taskId: z.string().optional(),
+taskId: z.string().nullable().optional(),
 });
 
 const syncActivitySnapshotSchema = z.object({
