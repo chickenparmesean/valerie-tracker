@@ -3,9 +3,9 @@
 Last updated: 2026-02-27
 Branch: staging (19 commits)
 
-## Overall Status: Vercel Deployed -- Ready for Installer + Test
+## Overall Status: NSIS Installer Built -- Ready for WorkSpace Testing
 
-All 6 build phases completed. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-11 done). web/ deployed to Vercel (task 12 done). Next: build NSIS installer, test on AWS WorkSpace.
+All 6 build phases completed. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12 done). NSIS installer built and verified (task 13 done). Next: test on AWS WorkSpace (tasks 14-18).
 
 ---
 
@@ -73,8 +73,10 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 
 ## Phase 5: Packaging Config -- DONE
 
-- [x] electron-builder.yml -- NSIS installer, app signing placeholders
+- [x] electron-builder.yml -- NSIS installer, native module asarUnpack, no code signing
 - [x] Build script: `npm run build:agent` (vite + tsc + electron-builder --win)
+- [x] NSIS installer built: "Valerie Tracker Setup 0.1.0.exe" (81 MB)
+- [x] All native .node binaries verified in app.asar.unpacked (better-sqlite3, sharp, x-win)
 
 ## Phase 6: Integration -- DONE
 
@@ -93,6 +95,11 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Config fallbacks | 8937ace | config.ts checks both SUPABASE_URL and NEXT_PUBLIC_SUPABASE_URL |
 | Dev script | e66f288 | Added preload tsc --watch + cross-env NODE_ENV=development for Vite HMR |
 | Vercel prep | 526be1b | postinstall prisma generate, prisma to deps, transpilePackages: shared |
+| NSIS installer | 0ea2a8c | electronVersion pinned to 34.5.8 (workspace monorepo detection fix) |
+| NSIS installer | 0ea2a8c | asarUnpack patterns for better-sqlite3, sharp, x-win, screenshot-desktop native binaries |
+| NSIS installer | 0ea2a8c | signAndEditExecutable: false (skip code signing for AWS WorkSpaces) |
+| NSIS installer | 0ea2a8c | Added description + author to agent/package.json (required by electron-builder) |
+| NSIS installer | 0ea2a8c | Placeholder icon created at agent/resources/icon.ico (256x256) |
 
 ## Deployment
 
@@ -107,6 +114,20 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Root directory | web/ (configured in Vercel dashboard) |
 | Prisma | postinstall script generates client during Vercel install step |
 | Note | Vercel Deployment Protection is on by default for Pro accounts -- must be disabled or set to preview-only for agent access |
+
+### Agent Installer
+
+| Item | Detail |
+|------|--------|
+| Installer | Valerie Tracker Setup 0.1.0.exe |
+| Size | 81 MB |
+| Format | NSIS (non-silent, user chooses install dir) |
+| Architecture | Windows x64 only |
+| Code signing | Disabled (not needed for AWS WorkSpaces) |
+| Native modules | better-sqlite3 (rebuilt for Electron 34.5.8), sharp-win32-x64, x-win-win32-x64-msvc |
+| Build command | `cd agent && npm run build:agent` |
+| Output dir | agent/dist/ |
+| Tested | Installs and launches on dev machine, all native modules load |
 
 ---
 
@@ -161,6 +182,7 @@ valerie-tracker/
 | 10 | Add config.json reading + safeStorage caching to agent startup | DONE (2026-02-26) |
 | 11 | Add error screen for "tracker not configured" | DONE (2026-02-26) |
 | 12 | Deploy standalone web/ to Vercel for testing | DONE (2026-02-27) |
+| 13 | Build NSIS Windows installer | DONE (2026-02-27) |
 
 **Tasks 1-3:** Dashboard UI stripped from web/ -- all pages, components, layout wrappers, design tokens, and fonts removed. Root layout rewritten to bare `<html><body>{children}</body></html>`. Root page replaced with simple "Valerie Tracker API" stub.
 
@@ -189,14 +211,16 @@ Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), c
 
 **Task 12:** web/ deployed to Vercel at https://valerie-tracker-web.vercel.app. Build config: postinstall script for prisma generate (--schema=../prisma/schema.prisma), prisma moved from devDependencies to dependencies, transpilePackages: ['shared'] in next.config.ts. Auto-deploys from staging branch. 55s build time. All 13 API routes verified working on Vercel serverless. Ping and config endpoints confirmed via PowerShell.
 
+**Task 13:** NSIS installer built successfully. Key fixes: pinned electronVersion to 34.5.8 in electron-builder.yml (workspace monorepo prevented auto-detection from hoisted node_modules). Added asarUnpack patterns for all native modules so .node binaries are extracted from asar at runtime. Set signAndEditExecutable: false to skip code signing (winCodeSign extraction failed on Windows due to symlink privilege issue -- not needed for AWS WorkSpaces deployment). Added required description/author fields to agent/package.json. Created placeholder 256x256 icon at agent/resources/icon.ico. Output: "Valerie Tracker Setup 0.1.0.exe" (81 MB) in agent/dist/. Verified all three native .node files present in app.asar.unpacked: better_sqlite3.node (rebuilt for Electron), sharp-win32-x64.node, x-win.win32-x64-msvc.node. screenshot-desktop's win32 capture utility (screenCapture_1.3.2.bat) also included.
+
 ---
 
 ## Known Issues / Next Steps
 
-**Auth work complete (tasks 1-11). Vercel deployment complete (task 12).** Web API uses API key auth, deployed to https://valerie-tracker-web.vercel.app with auto-deploys from staging. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. ErrorScreen for misconfigured agents. LoginScreen preserved behind --dev flag.
+**Auth work complete (tasks 1-11). Vercel deployment complete (task 12). NSIS installer built (task 13).** Web API uses API key auth, deployed to https://valerie-tracker-web.vercel.app with auto-deploys from staging. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. NSIS installer produces working .exe with all native modules packaged.
 
-**Next: Build installer and test (tasks 13-18)**
-1. Build NSIS installer (task 13)
+**Next: Test on AWS WorkSpace (tasks 14-18)**
+1. ~~Build NSIS installer (task 13)~~ -- DONE
 2. Test on real AWS WorkSpace -- all 12 items in Testing Priority (task 14)
 3. Fix native module / compatibility issues (task 15)
 4. Verify screenshot capture + upload end-to-end (task 16)
@@ -205,7 +229,8 @@ Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), c
 
 **Standing items:**
 - No automated tests yet -- manual testing of agent-to-web sync flow required
-- electron-builder.yml has placeholder for Windows code signing certificate
+- Code signing skipped (signAndEditExecutable: false) -- not needed for WorkSpaces, can add later if distributing externally
 - Supabase Storage "screenshots" bucket must be created manually (private)
 - electron-updater dependency present but not configured with a publish target
 - Dashboard UI stripped per INTEGRATION-GUIDE.md -- production dashboard lives in va-platform repo
+- Placeholder icon.ico should be replaced with real branding when available

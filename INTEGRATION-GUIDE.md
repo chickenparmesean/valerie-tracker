@@ -313,7 +313,7 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 10 | Add config.json reading + safeStorage caching to agent startup | DONE |
 | 11 | Add error screen for "tracker not configured" | DONE |
 | 12 | Deploy standalone `web/` to Vercel for testing | DONE |
-| 13 | Build NSIS installer | TODO |
+| 13 | Build NSIS installer | DONE |
 | 14 | Test on real AWS WorkSpace (all 12 items in Testing Priority) | TODO |
 | 15 | Fix any native module / compatibility issues found during testing | TODO |
 | 16 | Verify screenshot capture + upload end-to-end | TODO |
