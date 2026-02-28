@@ -59,7 +59,7 @@ export function registerIpcHandlers(): void {
       const data = await res.json();
       console.log(`projects:list — raw response:`, JSON.stringify(data));
       console.log(`projects:list — isArray: ${Array.isArray(data)}, type: ${typeof data}`);
-      return data;
+      return Array.isArray(data) ? data : data.projects || [];
     } catch (err) {
       console.log(`projects:list — error: ${err}`);
       return [];

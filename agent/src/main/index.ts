@@ -34,6 +34,7 @@ app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('no-sandbox');
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disk-cache-dir', path.join(app.getPath('userData'), 'Cache'));
+app.commandLine.appendSwitch('lang', 'en-US');
 
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
