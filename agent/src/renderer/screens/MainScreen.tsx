@@ -81,11 +81,9 @@ export default function MainScreen({ onLogout }: Props) {
   const loadProjects = async () => {
     try {
       const list = await window.electronAPI.projects.list();
-      console.log('[MainScreen] projects response:', JSON.stringify(list));
-      console.log('[MainScreen] isArray:', Array.isArray(list), 'type:', typeof list);
       setProjects(list);
-    } catch (err) {
-      console.error('[MainScreen] loadProjects failed:', err);
+    } catch {
+      // Projects will remain empty
     }
   };
 
