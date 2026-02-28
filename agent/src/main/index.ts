@@ -47,6 +47,9 @@ function createWindow(): void {
     icon: path.join(__dirname, '..', 'resources', 'icon.png'),
   });
 
+  // DEBUG: force DevTools open to catch white-screen errors
+  mainWindow.webContents.openDevTools({ mode: 'detach' });
+
   // Load renderer
   if (process.env.NODE_ENV === 'development') {
     mainWindow.loadURL('http://localhost:5173');

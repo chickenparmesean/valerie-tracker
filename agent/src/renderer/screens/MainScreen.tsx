@@ -79,8 +79,14 @@ export default function MainScreen({ onLogout }: Props) {
   }, [addingTaskForProject]);
 
   const loadProjects = async () => {
-    const list = await window.electronAPI.projects.list();
-    setProjects(list);
+    try {
+      const list = await window.electronAPI.projects.list();
+      console.log('[MainScreen] projects response:', JSON.stringify(list));
+      console.log('[MainScreen] isArray:', Array.isArray(list), 'type:', typeof list);
+      setProjects(list);
+    } catch (err) {
+      console.error('[MainScreen] loadProjects failed:', err);
+    }
   };
 
   const fetchTodayTotal = async () => {
