@@ -57,11 +57,24 @@ function createWindow(): void {
   // DEBUG: force DevTools open to catch white-screen errors
   mainWindow.webContents.openDevTools({ mode: 'detach' });
 
+  // DEBUG: window lifecycle logging
+  mainWindow.webContents.on('did-finish-load', () => console.log('[WINDOW] did-finish-load'));
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc) => console.log('[WINDOW] did-fail-load:', code, desc));
+  mainWindow.webContents.on('render-process-gone', (_e, details) => console.log('[WINDOW] render-process-gone:', details.reason));
+  mainWindow.webContents.on('unresponsive', () => console.log('[WINDOW] unresponsive'));
+  mainWindow.webContents.on('did-navigate', (_e, url) => console.log('[WINDOW] navigated to:', url));
+  mainWindow.webContents.on('will-navigate', (_e, url) => console.log('[WINDOW] will-navigate to:', url));
+  mainWindow.on('close', () => console.log('[WINDOW] close event'));
+  mainWindow.on('closed', () => console.log('[WINDOW] closed event'));
+
   // Load renderer
   if (process.env.NODE_ENV === 'development') {
+    console.log('[WINDOW] loading dev URL: http://localhost:5173');
     mainWindow.loadURL('http://localhost:5173');
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'dist-renderer', 'index.html'));
+    const filePath = path.join(__dirname, '..', 'dist-renderer', 'index.html');
+    console.log('[WINDOW] loading file:', filePath);
+    mainWindow.loadFile(filePath);
   }
 
   // Hide to tray on close
@@ -147,6 +160,8 @@ app.whenReady().then(async () => {
   if (!isDevMode) {
     initAutoUpdater();
   }
+
+  console.log('[STARTUP] init complete, window should be visible');
 });
 
 function startEngines(): void {
