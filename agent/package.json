@@ -1,6 +1,6 @@
 {
   "name": "agent",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Valerie Tracker desktop agent for time tracking and activity monitoring",
   "author": "HireValerie",

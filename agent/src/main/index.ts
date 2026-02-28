@@ -28,6 +28,13 @@ import { startSyncEngine, stopSyncEngine } from './sync';
 import { enableAutoLaunch } from './auto-launch';
 import { initAutoUpdater, stopAutoUpdater } from './auto-updater';
 
+// Disable GPU acceleration to prevent renderer crash on AWS WorkSpaces
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('no-sandbox');
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+app.commandLine.appendSwitch('disk-cache-dir', path.join(app.getPath('userData'), 'Cache'));
+
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
 
