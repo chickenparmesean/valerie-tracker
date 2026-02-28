@@ -3,9 +3,9 @@
 Last updated: 2026-02-27
 Branch: staging (28 commits)
 
-## Overall Status: All WorkSpace Tests Passed -- Ready for va-platform Integration
+## Overall Status: v0.1.6 Stable -- Post-WorkSpace Fixes Applied -- Ready for va-platform Integration
 
-All 6 build phases completed. All 18 integration guide tasks DONE. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12). NSIS installer built and verified (task 13). WorkSpace testing completed with all tests passing (tasks 14-18). Two server-side sync route fixes applied during testing (nullable taskId, timeEntryId resolution from idempotency keys). The agent is production-ready for va-platform integration.
+All 6 build phases completed. All 18 integration guide tasks DONE. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12). NSIS installer built and verified (task 13). WorkSpace testing completed (tasks 14-18) -- initial tests passed but three additional renderer/DevTools issues were discovered during sustained WorkSpace use, requiring fixes through v0.1.1-v0.1.6. Two server-side sync route fixes also applied during testing (nullable taskId, timeEntryId resolution from idempotency keys). Current stable version is v0.1.6. The agent is production-ready for va-platform integration.
 
 ---
 
@@ -103,6 +103,9 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | NSIS installer | 0ea2a8c | Placeholder icon created at agent/resources/icon.ico (256x256) |
 | Sync route: nullable taskId | -- | Zod schema changed from z.string().optional() to z.string().nullable().optional() -- agent sends null for taskless time entries |
 | Sync route: timeEntryId resolution | -- | Sync route now maps idempotency keys to actual DB IDs for child records (ActivitySnapshot, WindowSample, Screenshot) -- agent sends timeEntryIdempotencyKey, server resolves to timeEntryId |
+| Renderer white screen: projects response | 5a94451 | API returns `{ projects: [...] }` but ipc.ts returned raw object. MainScreen.tsx called `.map()` on non-array, crashed React with no error boundary. Fix: unwrap `data.projects` in ipc.ts `projects:list` handler. |
+| Renderer white screen: GPU cache errors | 3e049fb | Chromium disk cache permission errors on AWS WorkSpaces (`cache_util_win.cc` "Access is denied"). Fix: `app.disableHardwareAcceleration()`, `--disable-gpu`, `--no-sandbox`, `--disable-gpu-sandbox`, `--disk-cache-dir` redirect to `userData/Cache`. |
+| DevTools crash: Intl.Locale empty | 5a94451 | DevTools wouldn't open on WorkSpaces due to Chromium `Intl.Locale` bug with empty locale string. Fix: `app.commandLine.appendSwitch('lang', 'en-US')`. |
 
 ## Deployment
 
@@ -122,7 +125,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 
 | Item | Detail |
 |------|--------|
-| Installer | Valerie Tracker Setup 0.1.0.exe |
+| Installer | Valerie Tracker Setup 0.1.6.exe |
 | Size | 81 MB |
 | Format | NSIS (non-silent, user chooses install dir) |
 | Architecture | Windows x64 only |
@@ -131,6 +134,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Build command | `cd agent && npm run build:agent` |
 | Output dir | agent/dist/ |
 | Tested | Installs and launches on dev machine and AWS WorkSpace, all native modules load, full sync verified |
+| Note | Versions 0.1.1-0.1.5 were intermediate debug/fix builds during WorkSpace testing. |
 
 ### WorkSpace Testing Results (2026-02-27)
 
@@ -153,6 +157,10 @@ All tests conducted on a real AWS WorkSpace. Every test passed.
 | Window tracking | PASSED | App names (Electron, Google Chrome, Windows PowerShell, Windows Explorer), window titles, process paths all captured |
 | Idle detection | PASSED | Dialog appeared after 5 min idle, "Discard & Stop" option works correctly |
 | Screenshot metadata | PASSED | capturedAt, storageUrl, storagePath, activityPct, activeApp, fileSizeBytes all populated |
+
+| Renderer stability | FAILED then FIXED (v0.1.5) | White screen after 0.5s. Root cause: `projects:list` IPC returned raw `{ projects: [...] }` object, `.map()` threw TypeError, no error boundary. Secondary: GPU cache permission errors. Tertiary: DevTools broken by empty `Intl.Locale`. |
+| DevTools on WorkSpace | FAILED then FIXED (v0.1.5) | Ctrl+Shift+I produced `Intl.Locale` error. Fixed with `--lang=en-US` flag. |
+| Auto-update (electron-updater) | UNRELIABLE | NSIS auto-update downloads but does not reliably install on app restart. Current workaround: download installer manually from GitHub Releases. Needs investigation. |
 
 **Native modules on WorkSpaces: ALL PASSED** -- screenshot-desktop, @miniben90/x-win, powerMonitor.getSystemIdleTime(), better-sqlite3, sharp all work out of the box. No fallbacks needed (desktop-idle not required).
 
@@ -219,7 +227,7 @@ valerie-tracker/
 | 15 | Fix native module / compatibility issues | DONE (2026-02-27) -- no issues found, all native modules work |
 | 16 | Verify screenshot capture + upload end-to-end | DONE (2026-02-27) |
 | 17 | Verify sync engine end-to-end | DONE (2026-02-27) |
-| 18 | Package final working installer for golden image | DONE (2026-02-27) |
+| 18 | Package final working installer for golden image | DONE (2026-02-27) -- v0.1.6 is golden installer |
 
 **Tasks 1-3:** Dashboard UI stripped from web/ -- all pages, components, layout wrappers, design tokens, and fonts removed. Root layout rewritten to bare `<html><body>{children}</body></html>`. Root page replaced with simple "Valerie Tracker API" stub.
 
@@ -254,7 +262,11 @@ Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), c
 
 ## Known Issues / Next Steps
 
-**All 18 integration guide tasks DONE.** Web API uses API key auth, deployed to https://valerie-tracker-web.vercel.app with auto-deploys from staging. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. NSIS installer produces working .exe with all native modules packaged. All WorkSpace tests passed (2026-02-27). Two sync route fixes applied during testing. Agent is production-ready for va-platform integration.
+**All 18 integration guide tasks DONE.** Web API uses API key auth, deployed to https://valerie-tracker-web.vercel.app with auto-deploys from staging. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. NSIS installer produces working .exe with all native modules packaged. WorkSpace testing completed (2026-02-27) with post-testing fixes through v0.1.6. Two sync route fixes and three renderer/DevTools fixes applied. Agent is production-ready for va-platform integration.
+
+**Auto-update via electron-updater is unreliable with NSIS.** The agent detects and downloads updates but installation on restart does not consistently work. Current deployment method: download latest installer from GitHub Releases and run manually (overwrites previous install). Investigate switching to non-NSIS target or fixing quit-and-install flow.
+
+**WorkSpaces require Chromium flags:** `app.disableHardwareAcceleration()`, `--disable-gpu`, `--no-sandbox`, `--disable-gpu-sandbox`, `--disk-cache-dir`, `--lang=en-US`. These are set in `agent/src/main/index.ts` before `app.whenReady()`. Do NOT remove them.
 
 **Completed:**
 1. ~~Build NSIS installer (task 13)~~ -- DONE
@@ -262,7 +274,7 @@ Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), c
 3. ~~Fix native module / compatibility issues (task 15)~~ -- DONE, no issues found
 4. ~~Verify screenshot capture + upload end-to-end (task 16)~~ -- DONE
 5. ~~Verify sync engine end-to-end (task 17)~~ -- DONE, two server-side fixes applied
-6. ~~Package final working installer for golden image (task 18)~~ -- DONE, v0.1.0 is the golden installer
+6. ~~Package final working installer for golden image (task 18)~~ -- DONE, v0.1.6 is the golden installer (5 intermediate releases were needed to fix renderer crashes discovered on WorkSpaces)
 
 **Ready for va-platform integration.** The agent repo stays alive for future agent updates. The web/ folder (standalone API) gets retired when va-platform absorbs the routes.
 

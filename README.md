@@ -123,13 +123,16 @@ mkdir C:\ProgramData\ValerieTracker
 # Create config.json with apiBaseUrl, apiKey, and settings
 ```
 
-2. **Install the agent** -- run "Valerie Tracker Setup 0.1.0.exe" (81 MB NSIS installer, default install path)
+2. **Install the agent** -- run "Valerie Tracker Setup 0.1.6.exe" (81 MB NSIS installer, installs to `C:\Program Files\Valerie Tracker\`)
 
-3. **Launch** -- the agent verifies the API key, fetches config from the server, and shows projects/tasks
+3. **Launch** -- the agent verifies the API key, fetches config from the server, and shows projects/tasks. For debug output, launch from PowerShell:
+```powershell
+& "C:\Program Files\Valerie Tracker\Valerie Tracker.exe"
+```
 
 4. **Auto-launches on reboot** -- Registry Run key at `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` ensures the agent starts on Windows login
 
-### Verified Test Results (AWS WorkSpace, 2026-02-27)
+### Verified Test Results (AWS WorkSpace, 2026-02-27, v0.1.6)
 
 - Install + launch: PASSED
 - Config.json auth + Vercel API connection: PASSED
@@ -140,6 +143,9 @@ mkdir C:\ProgramData\ValerieTracker
 - Screenshot capture + presigned URL upload: PASSED (WebP, ~73-96KB)
 - Idle detection dialog after 5 min: PASSED
 - Auto-launch on reboot: PASSED
+- Renderer stability: FAILED then FIXED (v0.1.5) -- white screen caused by `projects:list` IPC returning raw object + GPU cache permission errors + `Intl.Locale` bug
+- DevTools on WorkSpace: FAILED then FIXED (v0.1.5) -- `Intl.Locale` error fixed with `--lang=en-US`
+- Auto-update (electron-updater): UNRELIABLE -- downloads update but does not reliably install on restart
 
 ## Development
 
@@ -228,6 +234,18 @@ cd agent && npm run dev
 | agent | `npm run build:agent` | Build + package Windows installer |
 | agent | `npm run typecheck` | Type-check main + preload |
 | agent | `npm run publish:agent` | Build + publish to GitHub Releases (requires GH_TOKEN) |
+
+## Publishing a Release
+
+Full workflow for shipping a new agent version:
+
+1. Bump version in `agent/package.json`
+2. Commit and push to staging
+3. Build and publish: `cd agent && npm run publish:agent` (requires `GH_TOKEN` env var with repo scope)
+4. Download the installer from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases)
+5. Run on WorkSpace (the NSIS installer overwrites the previous version -- no need to uninstall first)
+
+**Auto-update caveat:** Auto-update via electron-updater is currently unreliable with NSIS. The agent detects updates and downloads them, but installation on restart does not consistently work. For now, deploy updates by downloading the latest installer from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases) and running it manually on the WorkSpace. The NSIS installer overwrites the previous version -- no need to uninstall first.
 
 ## API Reference
 
@@ -336,6 +354,26 @@ C:\ProgramData\ValerieTracker\config.json
 ```
 The file must contain at minimum `apiBaseUrl` and `apiKey`. Check that the directory exists (`C:\ProgramData\ValerieTracker\`) and the file is readable.
 
+### White screen after login on WorkSpace
+The Chromium renderer crashes on AWS WorkSpaces due to GPU cache permission errors and locale issues. The following flags are required in `agent/src/main/index.ts` before `app.whenReady()`:
+- `app.disableHardwareAcceleration()`
+- `appendSwitch('disable-gpu')`
+- `appendSwitch('no-sandbox')`
+- `appendSwitch('disable-gpu-sandbox')`
+- `appendSwitch('disk-cache-dir', ...)`
+- `appendSwitch('lang', 'en-US')`
+
+Do not remove these.
+
+### DevTools won't open on WorkSpace
+Known Chromium bug with empty `Intl.Locale` on some Windows configurations. Fixed by `appendSwitch('lang', 'en-US')`. If still failing, launch from PowerShell to see console output instead:
+```powershell
+& "C:\Program Files\Valerie Tracker\Valerie Tracker.exe"
+```
+
+### Projects not loading / .map() error
+The `/api/tracker/projects` endpoint returns `{ projects: [...] }`. The `ipc.ts` handler must unwrap this: `return Array.isArray(data) ? data : data.projects || []`. If MainScreen shows white screen with a TypeError in console, this is the cause.
+
 ## Design System
 
 Dashboard UI has been stripped from web/ (production dashboard lives in va-platform repo). The web/ folder is a headless API server only. See DESIGN-BRIEF.md for styling tokens reference (used by va-platform, not this project).
@@ -354,4 +392,4 @@ Dashboard UI has been stripped from web/ (production dashboard lives in va-platf
 | Screenshots | screenshot-desktop + sharp (WebP) |
 | Window tracking | @miniben90/x-win |
 | Packaging | electron-builder (NSIS) |
-| Auto-update | electron-updater (GitHub Releases) |
+| Auto-update | electron-updater (GitHub Releases) -- currently unreliable with NSIS, see Troubleshooting |
