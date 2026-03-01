@@ -16,6 +16,9 @@ asarUnpack:
   - "node_modules/@img/**/*"
   - "node_modules/@miniben90/**/*"
   - "node_modules/screenshot-desktop/**/*"
+extraResources:
+  - from: resources/icon.ico
+    to: icon.ico
 npmRebuild: true
 electronVersion: "34.5.8"
 win:

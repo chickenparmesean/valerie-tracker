@@ -52,7 +52,9 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    icon: path.join(__dirname, '..', 'resources', 'icon.png'),
+    icon: app.isPackaged
+      ? path.join(process.resourcesPath, 'icon.ico')
+      : path.join(__dirname, '..', 'resources', 'icon.ico'),
   });
 
   // Load renderer
