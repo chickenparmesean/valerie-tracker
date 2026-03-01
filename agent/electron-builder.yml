@@ -26,7 +26,8 @@ win:
     - target: nsis
       arch: [x64]
   icon: resources/icon.ico
-  signAndEditExecutable: false
+  sign: false
+  signAndEditExecutable: true
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
