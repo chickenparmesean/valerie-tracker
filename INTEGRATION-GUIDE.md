@@ -320,7 +320,7 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 15 | Fix any native module / compatibility issues found during testing | DONE (2026-02-27) |
 | 16 | Verify screenshot capture + upload end-to-end | DONE (2026-02-27) |
 | 17 | Verify sync engine end-to-end | DONE (2026-02-27) |
-| 18 | Package final working installer ready for golden image | DONE (2026-02-27) -- v0.1.7 is the golden installer (rebranded to "Valerie Agent"). Versions 0.1.1-0.1.5 were intermediate debug/fix builds. |
+| 18 | Package final working installer ready for golden image | DONE (2026-02-27) -- v0.1.9 is the current stable installer (rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9). Versions 0.1.1-0.1.5 were intermediate debug/fix builds. |
 
 ### Agent Auth Swap -- COMPLETE (tasks 4, 9-11)
 
@@ -382,7 +382,7 @@ This builds the NSIS installer and uploads it as a GitHub Release with `latest.y
 
 **Task 17:** Full sync engine verified end-to-end on WorkSpace. All record types sync correctly: TimeEntries (create on start + update on stop with stoppedAt/status/durationSec), ActivitySnapshots (60s intervals, 0-82% activity range observed), WindowSamples (3s polling aggregated, app names and titles captured), Screenshots (metadata synced after presigned URL upload). Two server-side fixes were required during testing: (1) nullable taskId -- Zod schema changed from `z.string().optional()` to `z.string().nullable().optional()` because the agent sends null for taskless time entries; (2) timeEntryId resolution -- sync route now maps `timeEntryIdempotencyKey` to actual DB IDs for child records (ActivitySnapshot, WindowSample, Screenshot) via a lookup after TimeEntry upsert.
 
-**Task 18:** v0.1.7 is the golden installer (rebranded to "Valerie Agent"). The original v0.1.0 installer had three renderer issues that only manifested on sustained WorkSpace use, requiring five intermediate releases (v0.1.1-v0.1.5) to diagnose and fix. The v0.1.7 installer is ready for golden image deployment on AWS WorkSpaces.
+**Task 18:** v0.1.9 is the current stable installer (rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9). The original v0.1.0 installer had three renderer issues that only manifested on sustained WorkSpace use, requiring five intermediate releases (v0.1.1-v0.1.5) to diagnose and fix. The v0.1.9 installer is ready for golden image deployment on AWS WorkSpaces.
 
 ---
 

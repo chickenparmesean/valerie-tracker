@@ -4,9 +4,9 @@ A Hubstaff-replacement time tracker for virtual assistants. Electron desktop age
 
 ## Current Status
 
-**v0.1.7 stable -- Valerie Agent rebrand complete -- ready for va-platform integration (2026-02-28).**
+**v0.1.9 stable -- Valerie Agent rebrand complete -- ready for va-platform integration (2026-02-28).**
 
-All 18 integration guide tasks complete. The Electron agent (now branded "Valerie Agent") has been tested end-to-end on a real AWS WorkSpace:
+All 18 integration guide tasks complete. The Electron agent (branded "Valerie Agent" since v0.1.7, with icon fixes through v0.1.9) has been tested end-to-end on a real AWS WorkSpace:
 
 - NSIS installer works, auto-launches on reboot
 - Config.json + API key auth working against Vercel API
@@ -123,7 +123,7 @@ mkdir C:\ProgramData\ValerieAgent
 # Create config.json with apiBaseUrl, apiKey, and settings
 ```
 
-2. **Install the agent** -- run "Valerie Agent Setup 0.1.7.exe" (81 MB NSIS installer, installs to `C:\Program Files\Valerie Agent\`)
+2. **Install the agent** -- run "Valerie Agent Setup 0.1.9.exe" (NSIS installer, installs to `C:\Program Files\Valerie Agent\`)
 
 3. **Launch** -- the agent verifies the API key, fetches config from the server, and shows projects/tasks. For debug output, launch from PowerShell:
 ```powershell
@@ -132,7 +132,7 @@ mkdir C:\ProgramData\ValerieAgent
 
 4. **Auto-launches on reboot** -- Registry Run key at `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` ensures the agent starts on Windows login
 
-### Verified Test Results (AWS WorkSpace, 2026-02-27, v0.1.7)
+### Verified Test Results (AWS WorkSpace, 2026-02-27, v0.1.7–v0.1.9)
 
 - Install + launch: PASSED
 - Config.json auth + Vercel API connection: PASSED

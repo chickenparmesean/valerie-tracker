@@ -2,7 +2,7 @@
 
 ## Implementation Notes (2026-02-27)
 
-All recommended packages were used and work correctly on AWS WorkSpaces. Testing was conducted on a real AWS WorkSpace. Current stable version is v0.1.7 (rebranded to "Valerie Agent").
+All recommended packages were used and work correctly on AWS WorkSpaces. Testing was conducted on a real AWS WorkSpace. Current stable version is v0.1.9 (rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9).
 
 ### Package Performance on AWS WorkSpaces
 
