@@ -58,7 +58,7 @@ The MVP one-shot built a full standalone dashboard in `web/`. **All of that UI i
 ```
 valerie-tracker/
 ├── agent/              ← Electron app (auth swap complete)
-│   ├── src/main/       ← 14 modules (added tracker-config.ts)
+│   ├── src/main/       ← 15 modules (added tracker-config.ts, auto-updater.ts)
 │   ├── src/renderer/   ← LoginScreen (--dev only), MainScreen, IdleDialog, ErrorScreen
 │   └── src/preload/    ← contextBridge (auth, timer, projects, config, idle, app)
 ├── web/                ← API ONLY (all UI deleted)
@@ -134,7 +134,8 @@ The current agent uses Supabase Auth (email/password login). This needs to chang
 **Add:**
 - On startup, read config file:
   ```
-  C:\ProgramData\ValerieTracker\config.json
+  C:\ProgramData\ValerieAgent\config.json       (primary)
+  C:\ProgramData\ValerieTracker\config.json     (fallback)
   ```
   ```json
   {
@@ -171,7 +172,7 @@ Add `trackerApiKey String? @unique` to the standalone tracker's User model. Seed
 
 ### Agent startup sequence (production behavior)
 1. Check safeStorage for cached API key
-2. If not found, read `C:\ProgramData\ValerieTracker\config.json`
+2. If not found, read `C:\ProgramData\ValerieAgent\config.json` (falls back to `C:\ProgramData\ValerieTracker\config.json`)
 3. If config found, cache key in safeStorage, load settings
 4. Ping `GET /api/tracker/ping` to validate key (200 = valid, 401 = revoked)
 5. If valid → fetch projects/tasks → show MainScreen → start tracking
@@ -290,7 +291,7 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 ### How to test
 - Deploy `web/` to Vercel as its own project (e.g., `valerie-tracker-staging.vercel.app`)
 - Seed a test user in the tracker's Supabase DB with a known `trackerApiKey`
-- Create `C:\ProgramData\ValerieTracker\config.json` on the WorkSpace manually with the test key and staging API URL
+- Create `C:\ProgramData\ValerieAgent\config.json` on the WorkSpace manually with the test key and staging API URL
 - Install the agent on the WorkSpace
 - Run through the tests above
 - Report results back — what passed, what failed, what error messages
@@ -319,14 +320,14 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 15 | Fix any native module / compatibility issues found during testing | DONE (2026-02-27) |
 | 16 | Verify screenshot capture + upload end-to-end | DONE (2026-02-27) |
 | 17 | Verify sync engine end-to-end | DONE (2026-02-27) |
-| 18 | Package final working installer ready for golden image | DONE (2026-02-27) -- v0.1.6 is the golden installer. Versions 0.1.1-0.1.5 were intermediate debug/fix builds. |
+| 18 | Package final working installer ready for golden image | DONE (2026-02-27) -- v0.1.7 is the golden installer (rebranded to "Valerie Agent"). Versions 0.1.1-0.1.5 were intermediate debug/fix builds. |
 
 ### Agent Auth Swap -- COMPLETE (tasks 4, 9-11)
 
 The agent now uses API key auth from config.json with safeStorage caching. The implemented startup sequence:
 
 1. Check Electron safeStorage for cached API key + apiBaseUrl
-2. If not cached, read `C:\ProgramData\ValerieTracker\config.json`
+2. If not cached, read `C:\ProgramData\ValerieAgent\config.json` (falls back to `C:\ProgramData\ValerieTracker\config.json`)
 3. Cache apiKey in safeStorage (encrypted via Windows DPAPI)
 4. Ping `GET /api/tracker/ping` to validate key
 5. If valid (200), fetch `GET /api/tracker/config` for server settings
@@ -373,7 +374,7 @@ This builds the NSIS installer and uploads it as a GitHub Release with `latest.y
 
 **GH_TOKEN is needed ONLY at publish time.** The agent checks for updates using the public GitHub Releases API -- no token needed at runtime.
 
-**Task 14:** Installed on AWS WorkSpace via NSIS installer. Config.json auth working -- agent reads `C:\ProgramData\ValerieTracker\config.json`, pings Vercel API (`/api/tracker/ping`), fetches server config (`/api/tracker/config`). Auto-launch on reboot confirmed via Registry Run key (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`). All 12 Testing Priority items tested and passing.
+**Task 14:** Installed on AWS WorkSpace via NSIS installer. Config.json auth working -- agent reads `C:\ProgramData\ValerieAgent\config.json` (falls back to `C:\ProgramData\ValerieTracker\`), pings Vercel API (`/api/tracker/ping`), fetches server config (`/api/tracker/config`). Auto-launch on reboot confirmed via Registry Run key (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`). All 12 Testing Priority items tested and passing.
 
 **Task 15:** All native modules work on AWS WorkSpaces without any compatibility issues. No fallbacks needed. Specifically: `screenshot-desktop` captures screenshots correctly, `@miniben90/x-win` detects active windows (Chrome, PowerShell, Explorer, Electron all identified with correct app names and window titles), `powerMonitor.getSystemIdleTime()` returns correct values (Chromium bug #30126 did NOT affect Electron 34.5.8), `better-sqlite3` local SQLite cache working, `sharp` WebP compression working (~73-96KB per screenshot). The `desktop-idle` fallback package was not required.
 
@@ -381,7 +382,7 @@ This builds the NSIS installer and uploads it as a GitHub Release with `latest.y
 
 **Task 17:** Full sync engine verified end-to-end on WorkSpace. All record types sync correctly: TimeEntries (create on start + update on stop with stoppedAt/status/durationSec), ActivitySnapshots (60s intervals, 0-82% activity range observed), WindowSamples (3s polling aggregated, app names and titles captured), Screenshots (metadata synced after presigned URL upload). Two server-side fixes were required during testing: (1) nullable taskId -- Zod schema changed from `z.string().optional()` to `z.string().nullable().optional()` because the agent sends null for taskless time entries; (2) timeEntryId resolution -- sync route now maps `timeEntryIdempotencyKey` to actual DB IDs for child records (ActivitySnapshot, WindowSample, Screenshot) via a lookup after TimeEntry upsert.
 
-**Task 18:** v0.1.6 is the golden installer. The original v0.1.0 installer had three renderer issues that only manifested on sustained WorkSpace use, requiring five intermediate releases (v0.1.1-v0.1.5) to diagnose and fix. The v0.1.6 installer is ready for golden image deployment on AWS WorkSpaces.
+**Task 18:** v0.1.7 is the golden installer (rebranded to "Valerie Agent"). The original v0.1.0 installer had three renderer issues that only manifested on sustained WorkSpace use, requiring five intermediate releases (v0.1.1-v0.1.5) to diagnose and fix. The v0.1.7 installer is ready for golden image deployment on AWS WorkSpaces.
 
 ---
 
@@ -396,7 +397,7 @@ All 18 integration guide tasks are DONE. The Electron desktop agent has been tes
 - **Sync**: Agent syncs every 60s to Vercel API, idempotency keys prevent duplicates, two server-side fixes applied
 - **Screenshots**: Randomized capture, WebP compression, presigned URL upload to Supabase Storage, metadata synced
 
-**Post-initial-testing fixes (v0.1.1-v0.1.6):** Three issues were discovered after the initial v0.1.0 testing that only manifested on sustained WorkSpace use: (1) `projects:list` IPC handler returned raw API response `{ projects: [...] }` instead of unwrapping the array, causing MainScreen to crash on `.map()` -- fixed in ipc.ts. (2) Chromium GPU cache permission errors on WorkSpaces caused renderer white screen -- fixed with `disableHardwareAcceleration` and related flags in index.ts. (3) DevTools crashed on WorkSpaces due to empty `Intl.Locale` -- fixed with `--lang=en-US` flag. Auto-update via electron-updater was found to be unreliable with NSIS; current deployment uses manual installer download.
+**Post-initial-testing fixes (v0.1.1-v0.1.7):** Three issues were discovered after the initial v0.1.0 testing that only manifested on sustained WorkSpace use: (1) `projects:list` IPC handler returned raw API response `{ projects: [...] }` instead of unwrapping the array, causing MainScreen to crash on `.map()` -- fixed in ipc.ts. (2) Chromium GPU cache permission errors on WorkSpaces caused renderer white screen -- fixed with `disableHardwareAcceleration` and related flags in index.ts. (3) DevTools crashed on WorkSpaces due to empty `Intl.Locale` -- fixed with `--lang=en-US` flag. Auto-update via electron-updater was found to be unreliable with NSIS; current deployment uses manual installer download.
 
 **The project is ready for va-platform integration.** The agent repo stays alive for future agent updates. The web/ folder (standalone API) gets retired when va-platform absorbs the routes.
 

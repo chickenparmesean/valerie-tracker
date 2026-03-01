@@ -1,11 +1,11 @@
 # Valerie Tracker -- Build Status
 
-Last updated: 2026-02-27
-Branch: staging (28 commits)
+Last updated: 2026-02-28
+Branch: staging
 
-## Overall Status: v0.1.6 Stable -- Post-WorkSpace Fixes Applied -- Ready for va-platform Integration
+## Overall Status: v0.1.7 Stable -- Rebranded to "Valerie Agent" -- Ready for va-platform Integration
 
-All 6 build phases completed. All 18 integration guide tasks DONE. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12). NSIS installer built and verified (task 13). WorkSpace testing completed (tasks 14-18) -- initial tests passed but three additional renderer/DevTools issues were discovered during sustained WorkSpace use, requiring fixes through v0.1.1-v0.1.6. Two server-side sync route fixes also applied during testing (nullable taskId, timeEntryId resolution from idempotency keys). Current stable version is v0.1.6. The agent is production-ready for va-platform integration.
+All 6 build phases completed. All 18 integration guide tasks DONE. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12). NSIS installer built and verified (task 13). WorkSpace testing completed (tasks 14-18) -- initial tests passed but three additional renderer/DevTools issues were discovered during sustained WorkSpace use, requiring fixes through v0.1.1-v0.1.6. Two server-side sync route fixes also applied during testing (nullable taskId, timeEntryId resolution from idempotency keys). v0.1.7 rebranded the desktop app from "Valerie Tracker" to "Valerie Agent" -- updated installer name, install path, config path, window icon, and logo. Current stable version is v0.1.7. The agent is production-ready for va-platform integration.
 
 ---
 
@@ -76,7 +76,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 
 - [x] electron-builder.yml -- NSIS installer, native module asarUnpack, no code signing
 - [x] Build script: `npm run build:agent` (vite + tsc + electron-builder --win)
-- [x] NSIS installer built: "Valerie Tracker Setup 0.1.0.exe" (81 MB)
+- [x] NSIS installer built: "Valerie Agent Setup 0.1.7.exe" (81 MB)
 - [x] All native .node binaries verified in app.asar.unpacked (better-sqlite3, sharp, x-win)
 
 ## Phase 6: Integration -- DONE
@@ -106,6 +106,8 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Renderer white screen: projects response | 5a94451 | API returns `{ projects: [...] }` but ipc.ts returned raw object. MainScreen.tsx called `.map()` on non-array, crashed React with no error boundary. Fix: unwrap `data.projects` in ipc.ts `projects:list` handler. |
 | Renderer white screen: GPU cache errors | 3e049fb | Chromium disk cache permission errors on AWS WorkSpaces (`cache_util_win.cc` "Access is denied"). Fix: `app.disableHardwareAcceleration()`, `--disable-gpu`, `--no-sandbox`, `--disable-gpu-sandbox`, `--disk-cache-dir` redirect to `userData/Cache`. |
 | DevTools crash: Intl.Locale empty | 5a94451 | DevTools wouldn't open on WorkSpaces due to Chromium `Intl.Locale` bug with empty locale string. Fix: `app.commandLine.appendSwitch('lang', 'en-US')`. |
+| Rebrand: Valerie Tracker → Valerie Agent | 8ac08ac | Desktop app rebranded to "Valerie Agent" -- updated productName, installer name, install path (`C:\Program Files\Valerie Agent\`), config path (primary `C:\ProgramData\ValerieAgent\`, fallback `C:\ProgramData\ValerieTracker\`), Registry Run key. |
+| Icon: complete woman silhouette | 4962ca4 | Regenerated icon.ico with full SVG path (uniform scale 0.74). Replaced "V" letter logos in all renderer screens with inline SVG silhouette. Set BrowserWindow icon + extraResources in electron-builder.yml. |
 
 ## Deployment
 
@@ -125,7 +127,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 
 | Item | Detail |
 |------|--------|
-| Installer | Valerie Tracker Setup 0.1.6.exe |
+| Installer | Valerie Agent Setup 0.1.7.exe |
 | Size | 81 MB |
 | Format | NSIS (non-silent, user chooses install dir) |
 | Architecture | Windows x64 only |
@@ -134,7 +136,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Build command | `cd agent && npm run build:agent` |
 | Output dir | agent/dist/ |
 | Tested | Installs and launches on dev machine and AWS WorkSpace, all native modules load, full sync verified |
-| Note | Versions 0.1.1-0.1.5 were intermediate debug/fix builds during WorkSpace testing. |
+| Note | Versions 0.1.1-0.1.5 were intermediate debug/fix builds during WorkSpace testing. v0.1.6 was the last release under the "Valerie Tracker" name. v0.1.7 rebranded to "Valerie Agent". |
 
 ### WorkSpace Testing Results (2026-02-27)
 
@@ -143,7 +145,7 @@ All tests conducted on a real AWS WorkSpace. Every test passed.
 | Test | Result | Details |
 |------|--------|---------|
 | Install on AWS WorkSpace | PASSED | NSIS installer, default path, launches cleanly |
-| Config.json auth | PASSED | Reads C:\ProgramData\ValerieTracker\config.json, pings Vercel, fetches server config |
+| Config.json auth | PASSED | Reads C:\ProgramData\ValerieAgent\config.json (falls back to ValerieTracker\), pings Vercel, fetches server config |
 | Auto-launch on reboot | PASSED | Registry Run key works, app starts on Windows login |
 | screenshot-desktop | PASSED | Captures screenshots correctly on WorkSpaces |
 | @miniben90/x-win | PASSED | Detects active windows -- Chrome, PowerShell, Explorer, Electron all identified |
@@ -227,7 +229,7 @@ valerie-tracker/
 | 15 | Fix native module / compatibility issues | DONE (2026-02-27) -- no issues found, all native modules work |
 | 16 | Verify screenshot capture + upload end-to-end | DONE (2026-02-27) |
 | 17 | Verify sync engine end-to-end | DONE (2026-02-27) |
-| 18 | Package final working installer for golden image | DONE (2026-02-27) -- v0.1.6 is golden installer |
+| 18 | Package final working installer for golden image | DONE (2026-02-27) -- v0.1.7 is golden installer (rebranded to "Valerie Agent") |
 
 **Tasks 1-3:** Dashboard UI stripped from web/ -- all pages, components, layout wrappers, design tokens, and fonts removed. Root layout rewritten to bare `<html><body>{children}</body></html>`. Root page replaced with simple "Valerie Tracker API" stub.
 
@@ -243,7 +245,7 @@ valerie-tracker/
 
 **Task 10:** New module tracker-config.ts handles the full API key auth startup:
 1. Checks safeStorage for cached API key + apiBaseUrl
-2. Falls back to reading C:\ProgramData\ValerieTracker\config.json
+2. Falls back to reading C:\ProgramData\ValerieAgent\config.json (or legacy C:\ProgramData\ValerieTracker\)
 3. Caches apiKey in safeStorage (encrypted via DPAPI)
 4. Pings GET /api/tracker/ping to validate key (200=ok, 401=invalid)
 5. Fetches GET /api/tracker/config for server settings
@@ -256,13 +258,13 @@ Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), c
 
 **Task 12:** web/ deployed to Vercel at https://valerie-tracker-web.vercel.app. Build config: postinstall script for prisma generate (--schema=../prisma/schema.prisma), prisma moved from devDependencies to dependencies, transpilePackages: ['shared'] in next.config.ts. Auto-deploys from staging branch. 55s build time. All 13 API routes verified working on Vercel serverless. Ping and config endpoints confirmed via PowerShell.
 
-**Task 13:** NSIS installer built successfully. Key fixes: pinned electronVersion to 34.5.8 in electron-builder.yml (workspace monorepo prevented auto-detection from hoisted node_modules). Added asarUnpack patterns for all native modules so .node binaries are extracted from asar at runtime. Set signAndEditExecutable: false to skip code signing (winCodeSign extraction failed on Windows due to symlink privilege issue -- not needed for AWS WorkSpaces deployment). Added required description/author fields to agent/package.json. Created placeholder 256x256 icon at agent/resources/icon.ico. Output: "Valerie Tracker Setup 0.1.0.exe" (81 MB) in agent/dist/. Verified all three native .node files present in app.asar.unpacked: better_sqlite3.node (rebuilt for Electron), sharp-win32-x64.node, x-win.win32-x64-msvc.node. screenshot-desktop's win32 capture utility (screenCapture_1.3.2.bat) also included.
+**Task 13:** NSIS installer built successfully. Key fixes: pinned electronVersion to 34.5.8 in electron-builder.yml (workspace monorepo prevented auto-detection from hoisted node_modules). Added asarUnpack patterns for all native modules so .node binaries are extracted from asar at runtime. Set signAndEditExecutable: false to skip code signing (winCodeSign extraction failed on Windows due to symlink privilege issue -- not needed for AWS WorkSpaces deployment). Added required description/author fields to agent/package.json. Created placeholder 256x256 icon at agent/resources/icon.ico. Output: "Valerie Agent Setup 0.1.7.exe" (81 MB) in agent/dist/. Verified all three native .node files present in app.asar.unpacked: better_sqlite3.node (rebuilt for Electron), sharp-win32-x64.node, x-win.win32-x64-msvc.node. screenshot-desktop's win32 capture utility (screenCapture_1.3.2.bat) also included.
 
 ---
 
 ## Known Issues / Next Steps
 
-**All 18 integration guide tasks DONE.** Web API uses API key auth, deployed to https://valerie-tracker-web.vercel.app with auto-deploys from staging. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. NSIS installer produces working .exe with all native modules packaged. WorkSpace testing completed (2026-02-27) with post-testing fixes through v0.1.6. Two sync route fixes and three renderer/DevTools fixes applied. Agent is production-ready for va-platform integration.
+**All 18 integration guide tasks DONE.** Web API uses API key auth, deployed to https://valerie-tracker-web.vercel.app with auto-deploys from staging. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. NSIS installer produces working .exe with all native modules packaged. WorkSpace testing completed (2026-02-27) with post-testing fixes through v0.1.6, rebranded to "Valerie Agent" in v0.1.7. Two sync route fixes and three renderer/DevTools fixes applied. Agent is production-ready for va-platform integration.
 
 **Auto-update via electron-updater is unreliable with NSIS.** The agent detects and downloads updates but installation on restart does not consistently work. Current deployment method: download latest installer from GitHub Releases and run manually (overwrites previous install). Investigate switching to non-NSIS target or fixing quit-and-install flow.
 
@@ -274,7 +276,7 @@ Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), c
 3. ~~Fix native module / compatibility issues (task 15)~~ -- DONE, no issues found
 4. ~~Verify screenshot capture + upload end-to-end (task 16)~~ -- DONE
 5. ~~Verify sync engine end-to-end (task 17)~~ -- DONE, two server-side fixes applied
-6. ~~Package final working installer for golden image (task 18)~~ -- DONE, v0.1.6 is the golden installer (5 intermediate releases were needed to fix renderer crashes discovered on WorkSpaces)
+6. ~~Package final working installer for golden image (task 18)~~ -- DONE, v0.1.7 is the golden installer (rebranded from "Valerie Tracker" to "Valerie Agent"; 5 intermediate releases v0.1.1-v0.1.5 were needed to fix renderer crashes discovered on WorkSpaces)
 
 **Ready for va-platform integration.** The agent repo stays alive for future agent updates. The web/ folder (standalone API) gets retired when va-platform absorbs the routes.
 
@@ -287,4 +289,4 @@ Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), c
 - electron-updater configured for GitHub Releases (publish: github, owner: chickenparmesean, repo: valerie-tracker)
 - To publish a release: set GH_TOKEN env var (repo scope), run `npm run publish:agent` from agent/
 - Dashboard UI stripped per INTEGRATION-GUIDE.md -- production dashboard lives in va-platform repo
-- Placeholder icon.ico should be replaced with real branding when available
+- Custom icon.ico with woman silhouette logo shipped in v0.1.7

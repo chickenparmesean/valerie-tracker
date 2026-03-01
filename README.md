@@ -4,9 +4,9 @@ A Hubstaff-replacement time tracker for virtual assistants. Electron desktop age
 
 ## Current Status
 
-**All WorkSpace tests passed -- ready for va-platform integration (2026-02-27).**
+**v0.1.7 stable -- Valerie Agent rebrand complete -- ready for va-platform integration (2026-02-28).**
 
-All 18 integration guide tasks complete. The Electron agent has been tested end-to-end on a real AWS WorkSpace:
+All 18 integration guide tasks complete. The Electron agent (now branded "Valerie Agent") has been tested end-to-end on a real AWS WorkSpace:
 
 - NSIS installer works, auto-launches on reboot
 - Config.json + API key auth working against Vercel API
@@ -77,7 +77,7 @@ Creates: 1 VA user (`testva@hirevalerie.com`, API key `vt_test123`), 1 organizat
 
 The agent reads its configuration from a JSON file on startup:
 
-**Location:** `C:\ProgramData\ValerieTracker\config.json`
+**Location:** `C:\ProgramData\ValerieAgent\config.json` (falls back to `C:\ProgramData\ValerieTracker\config.json` for backwards compatibility)
 
 **Full example:**
 ```json
@@ -119,20 +119,20 @@ Steps to deploy the agent on an AWS WorkSpace:
 
 1. **Create config.json** with the VA's API key and Vercel URL:
 ```powershell
-mkdir C:\ProgramData\ValerieTracker
+mkdir C:\ProgramData\ValerieAgent
 # Create config.json with apiBaseUrl, apiKey, and settings
 ```
 
-2. **Install the agent** -- run "Valerie Tracker Setup 0.1.6.exe" (81 MB NSIS installer, installs to `C:\Program Files\Valerie Tracker\`)
+2. **Install the agent** -- run "Valerie Agent Setup 0.1.7.exe" (81 MB NSIS installer, installs to `C:\Program Files\Valerie Agent\`)
 
 3. **Launch** -- the agent verifies the API key, fetches config from the server, and shows projects/tasks. For debug output, launch from PowerShell:
 ```powershell
-& "C:\Program Files\Valerie Tracker\Valerie Tracker.exe"
+& "C:\Program Files\Valerie Agent\Valerie Agent.exe"
 ```
 
 4. **Auto-launches on reboot** -- Registry Run key at `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` ensures the agent starts on Windows login
 
-### Verified Test Results (AWS WorkSpace, 2026-02-27, v0.1.6)
+### Verified Test Results (AWS WorkSpace, 2026-02-27, v0.1.7)
 
 - Install + launch: PASSED
 - Config.json auth + Vercel API connection: PASSED
@@ -194,7 +194,7 @@ This creates a test VA user with API key `vt_test123`, an organization, 2 projec
 
 2. **Create the config file** the agent reads on startup:
 ```
-C:\ProgramData\ValerieTracker\config.json
+C:\ProgramData\ValerieAgent\config.json
 ```
 ```json
 {
@@ -342,7 +342,7 @@ Check the Windows Registry for the auto-launch entry:
 ```
 HKCU\Software\Microsoft\Windows\CurrentVersion\Run
 ```
-Look for a "Valerie Tracker" entry. If missing, the auto-launch module may not have run on first launch.
+Look for a "Valerie Agent" entry. If missing, the auto-launch module may not have run on first launch.
 
 ### Screenshots not uploading
 Verify the "screenshots" bucket exists in your Supabase Storage dashboard (must be private, not public). The agent gets a presigned URL from `/api/screenshots/presign` and uploads directly to Supabase Storage.
@@ -350,9 +350,9 @@ Verify the "screenshots" bucket exists in your Supabase Storage dashboard (must 
 ### Config not found
 Verify the config file exists and is valid JSON:
 ```
-C:\ProgramData\ValerieTracker\config.json
+C:\ProgramData\ValerieAgent\config.json
 ```
-The file must contain at minimum `apiBaseUrl` and `apiKey`. Check that the directory exists (`C:\ProgramData\ValerieTracker\`) and the file is readable.
+The file must contain at minimum `apiBaseUrl` and `apiKey`. Check that the directory exists (`C:\ProgramData\ValerieAgent\`). The agent also checks the legacy path `C:\ProgramData\ValerieTracker\config.json` as a fallback.
 
 ### White screen after login on WorkSpace
 The Chromium renderer crashes on AWS WorkSpaces due to GPU cache permission errors and locale issues. The following flags are required in `agent/src/main/index.ts` before `app.whenReady()`:
@@ -368,7 +368,7 @@ Do not remove these.
 ### DevTools won't open on WorkSpace
 Known Chromium bug with empty `Intl.Locale` on some Windows configurations. Fixed by `appendSwitch('lang', 'en-US')`. If still failing, launch from PowerShell to see console output instead:
 ```powershell
-& "C:\Program Files\Valerie Tracker\Valerie Tracker.exe"
+& "C:\Program Files\Valerie Agent\Valerie Agent.exe"
 ```
 
 ### Projects not loading / .map() error
