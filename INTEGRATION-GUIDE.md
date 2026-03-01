@@ -320,7 +320,7 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 15 | Fix any native module / compatibility issues found during testing | DONE (2026-02-27) |
 | 16 | Verify screenshot capture + upload end-to-end | DONE (2026-02-27) |
 | 17 | Verify sync engine end-to-end | DONE (2026-02-27) |
-| 18 | Package final working installer ready for golden image | DONE (2026-02-27) -- v0.1.9 is the current stable installer (rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9). Versions 0.1.1-0.1.5 were intermediate debug/fix builds. |
+| 18 | Package final working installer ready for golden image | DONE (2026-02-27, updated 2026-03-01) -- v0.2.0 is the current stable installer. Rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9. v0.2.0 added `perMachine: true` for C: drive install on golden images. Versions 0.1.1-0.1.5 were intermediate debug/fix builds. |
 
 ### Agent Auth Swap -- COMPLETE (tasks 4, 9-11)
 
@@ -382,7 +382,7 @@ This builds the NSIS installer and uploads it as a GitHub Release with `latest.y
 
 **Task 17:** Full sync engine verified end-to-end on WorkSpace. All record types sync correctly: TimeEntries (create on start + update on stop with stoppedAt/status/durationSec), ActivitySnapshots (60s intervals, 0-82% activity range observed), WindowSamples (3s polling aggregated, app names and titles captured), Screenshots (metadata synced after presigned URL upload). Two server-side fixes were required during testing: (1) nullable taskId -- Zod schema changed from `z.string().optional()` to `z.string().nullable().optional()` because the agent sends null for taskless time entries; (2) timeEntryId resolution -- sync route now maps `timeEntryIdempotencyKey` to actual DB IDs for child records (ActivitySnapshot, WindowSample, Screenshot) via a lookup after TimeEntry upsert.
 
-**Task 18:** v0.1.9 is the current stable installer (rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9). The original v0.1.0 installer had three renderer issues that only manifested on sustained WorkSpace use, requiring five intermediate releases (v0.1.1-v0.1.5) to diagnose and fix. The v0.1.9 installer is ready for golden image deployment on AWS WorkSpaces.
+**Task 18:** v0.2.0 is the current stable installer. Rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9, `perMachine: true` added in v0.2.0 for C: drive install on WorkSpaces golden images (C: drive persists in captured images, D: drive does not). The original v0.1.0 installer had three renderer issues that only manifested on sustained WorkSpace use, requiring five intermediate releases (v0.1.1-v0.1.5) to diagnose and fix. The v0.2.0 installer is ready for golden image deployment on AWS WorkSpaces.
 
 ---
 
@@ -390,7 +390,7 @@ This builds the NSIS installer and uploads it as a GitHub Release with `latest.y
 
 All 18 integration guide tasks are DONE. The Electron desktop agent has been tested end-to-end on a real AWS WorkSpace with all tests passing:
 
-- **Installation**: NSIS installer works, auto-launch on reboot via Registry Run key
+- **Installation**: NSIS installer works with `perMachine: true` (installs to `C:\Program Files\Valerie Agent\`), auto-launch on reboot via Registry Run key
 - **Authentication**: Config.json + API key auth working, Vercel API connection verified
 - **Native modules**: All 5 native packages work out of the box (screenshot-desktop, x-win, powerMonitor, better-sqlite3, sharp)
 - **Tracking**: Time entries, activity snapshots, window samples, and screenshots all capture and sync correctly
@@ -398,6 +398,8 @@ All 18 integration guide tasks are DONE. The Electron desktop agent has been tes
 - **Screenshots**: Randomized capture, WebP compression, presigned URL upload to Supabase Storage, metadata synced
 
 **Post-initial-testing fixes (v0.1.1-v0.1.7):** Three issues were discovered after the initial v0.1.0 testing that only manifested on sustained WorkSpace use: (1) `projects:list` IPC handler returned raw API response `{ projects: [...] }` instead of unwrapping the array, causing MainScreen to crash on `.map()` -- fixed in ipc.ts. (2) Chromium GPU cache permission errors on WorkSpaces caused renderer white screen -- fixed with `disableHardwareAcceleration` and related flags in index.ts. (3) DevTools crashed on WorkSpaces due to empty `Intl.Locale` -- fixed with `--lang=en-US` flag. Auto-update via electron-updater was found to be unreliable with NSIS; current deployment uses manual installer download.
+
+**Golden image deployment is the primary deployment method.** The v0.2.0 installer with `perMachine: true` installs to `C:\Program Files\Valerie Agent\` on the C: drive, which persists in AWS WorkSpaces captured images (the D: drive user profile does not). Auto-update via electron-updater is unreliable with NSIS; deploy new versions by rebuilding the golden image with the latest installer.
 
 **The project is ready for va-platform integration.** The agent repo stays alive for future agent updates. The web/ folder (standalone API) gets retired when va-platform absorbs the routes.
 

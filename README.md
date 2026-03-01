@@ -4,9 +4,9 @@ A Hubstaff-replacement time tracker for virtual assistants. Electron desktop age
 
 ## Current Status
 
-**v0.1.9 stable -- Valerie Agent rebrand complete -- ready for va-platform integration (2026-02-28).**
+**v0.2.0 stable -- perMachine install for WorkSpaces golden images (2026-03-01).**
 
-All 18 integration guide tasks complete. The Electron agent (branded "Valerie Agent" since v0.1.7, with icon fixes through v0.1.9) has been tested end-to-end on a real AWS WorkSpace:
+All 18 integration guide tasks complete. The Electron agent (branded "Valerie Agent" since v0.1.7) has been tested end-to-end on a real AWS WorkSpace. v0.2.0 adds `perMachine: true` to the NSIS config so the installer defaults to `C:\Program Files\` (required for golden images -- C: drive persists, D: does not).
 
 - NSIS installer works, auto-launches on reboot
 - Config.json + API key auth working against Vercel API
@@ -123,7 +123,7 @@ mkdir C:\ProgramData\ValerieAgent
 # Create config.json with apiBaseUrl, apiKey, and settings
 ```
 
-2. **Install the agent** -- run "Valerie Agent Setup 0.1.9.exe" (NSIS installer, installs to `C:\Program Files\Valerie Agent\`)
+2. **Install the agent** -- run "Valerie Agent Setup 0.2.0.exe" (NSIS installer, `perMachine: true` defaults to `C:\Program Files\Valerie Agent\`)
 
 3. **Launch** -- the agent verifies the API key, fetches config from the server, and shows projects/tasks. For debug output, launch from PowerShell:
 ```powershell
@@ -132,7 +132,7 @@ mkdir C:\ProgramData\ValerieAgent
 
 4. **Auto-launches on reboot** -- Registry Run key at `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` ensures the agent starts on Windows login
 
-### Verified Test Results (AWS WorkSpace, 2026-02-27, v0.1.7–v0.1.9)
+### Verified Test Results (AWS WorkSpace, 2026-02-27, v0.1.7–v0.2.0)
 
 - Install + launch: PASSED
 - Config.json auth + Vercel API connection: PASSED
@@ -146,6 +146,22 @@ mkdir C:\ProgramData\ValerieAgent
 - Renderer stability: FAILED then FIXED (v0.1.5) -- white screen caused by `projects:list` IPC returning raw object + GPU cache permission errors + `Intl.Locale` bug
 - DevTools on WorkSpace: FAILED then FIXED (v0.1.5) -- `Intl.Locale` error fixed with `--lang=en-US`
 - Auto-update (electron-updater): UNRELIABLE -- downloads update but does not reliably install on restart
+
+### Golden Image Workflow
+
+To create a golden image with the agent pre-installed for all new WorkSpaces:
+
+1. **Spin up a fresh WorkSpace** from the default Windows bundle
+2. **RDP in** and create `C:\ProgramData\ValerieAgent\config.json` with the VA's API key and Vercel URL
+3. **Download** "Valerie Agent Setup 0.2.0.exe" from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases)
+4. **Run the installer** -- `perMachine: true` defaults to `C:\Program Files\Valerie Agent\` (system volume)
+5. **Verify**: `Test-Path "C:\Program Files\Valerie Agent\Valerie Agent.exe"`
+6. **Launch agent**, verify API connection (MainScreen shows projects)
+7. **Stop agent**, optionally clear safeStorage cache for clean slate
+8. **Create Image** from WorkSpace (~45 min)
+9. **Create Custom Bundle** from captured image
+
+The `perMachine: true` setting is critical -- the C: drive (system volume) persists in captured images, but the D: drive (user volume) does not. Previous versions installed to AppData on D: by default, which would be lost in the golden image.
 
 ## Development
 
@@ -241,9 +257,17 @@ Full workflow for shipping a new agent version:
 
 1. Bump version in `agent/package.json`
 2. Commit and push to staging
-3. Build and publish: `cd agent && npm run publish:agent` (requires `GH_TOKEN` env var with repo scope)
+3. Set GH_TOKEN and publish:
+   ```bash
+   export GH_TOKEN="ghp_your_token_here"  # needs 'repo' scope
+   cd agent
+   npm run publish:agent
+   ```
+   This builds the NSIS installer and uploads it as a GitHub Release (draft). Publish the draft release in the GitHub UI or via API to make it the latest.
 4. Download the installer from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases)
 5. Run on WorkSpace (the NSIS installer overwrites the previous version -- no need to uninstall first)
+
+**GH_TOKEN is needed ONLY at publish time.** The agent checks for updates using the public GitHub Releases API -- no token needed at runtime.
 
 **Auto-update caveat:** Auto-update via electron-updater is currently unreliable with NSIS. The agent detects updates and downloads them, but installation on restart does not consistently work. For now, deploy updates by downloading the latest installer from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases) and running it manually on the WorkSpace. The NSIS installer overwrites the previous version -- no need to uninstall first.
 
@@ -391,5 +415,5 @@ Dashboard UI has been stripped from web/ (production dashboard lives in va-platf
 | Storage | Supabase Storage (presigned URLs) |
 | Screenshots | screenshot-desktop + sharp (WebP) |
 | Window tracking | @miniben90/x-win |
-| Packaging | electron-builder (NSIS) |
+| Packaging | electron-builder (NSIS, perMachine: true) |
 | Auto-update | electron-updater (GitHub Releases) -- currently unreliable with NSIS, see Troubleshooting |
