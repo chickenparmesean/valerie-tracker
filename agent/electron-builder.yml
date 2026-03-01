@@ -30,6 +30,7 @@ win:
   signAndEditExecutable: true
 nsis:
   oneClick: false
+  perMachine: true
   allowToChangeInstallationDirectory: true
   installerIcon: resources/icon.ico
   uninstallerIcon: resources/icon.ico
