@@ -5,7 +5,7 @@ export function enableAutoLaunch(): void {
   try {
     const exePath = app.getPath('exe');
     execSync(
-      `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "ValerieTracker" /t REG_SZ /d "${exePath}" /f`,
+      `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "ValerieAgent" /t REG_SZ /d "${exePath}" /f`,
       { windowsHide: true }
     );
   } catch (err) {
@@ -16,7 +16,7 @@ export function enableAutoLaunch(): void {
 export function disableAutoLaunch(): void {
   try {
     execSync(
-      'reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "ValerieTracker" /f',
+      'reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "ValerieAgent" /f',
       { windowsHide: true }
     );
   } catch {

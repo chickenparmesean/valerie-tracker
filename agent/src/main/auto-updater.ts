@@ -27,11 +27,11 @@ export function initAutoUpdater(): void {
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log(`[AutoUpdater] Update downloaded: v${info.version}`);
-    // Show OS-level notification via tray — do NOT force restart
+    // Show custom OS-level notification — do NOT force restart
     if (Notification.isSupported()) {
       const notification = new Notification({
-        title: 'Valerie Tracker',
-        body: 'Update ready \u2014 will install on next restart',
+        title: 'Valerie Agent',
+        body: 'A new version has been downloaded and will be installed on restart.',
       });
       notification.show();
     }
@@ -42,14 +42,15 @@ export function initAutoUpdater(): void {
     // Non-fatal — swallow the error, don't crash
   });
 
-  // Initial check
-  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+  // Use checkForUpdates() instead of checkForUpdatesAndNotify() —
+  // we handle the notification ourselves in the update-downloaded handler above
+  autoUpdater.checkForUpdates().catch((err) => {
     console.log(`[AutoUpdater] Initial check failed: ${err.message}`);
   });
 
   // Recurring check every 4 hours
   checkInterval = setInterval(() => {
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+    autoUpdater.checkForUpdates().catch((err) => {
       console.log(`[AutoUpdater] Scheduled check failed: ${err.message}`);
     });
   }, CHECK_INTERVAL_MS);
@@ -58,7 +59,7 @@ export function initAutoUpdater(): void {
 /** Trigger a manual update check (e.g. from tray menu) */
 export function checkForUpdatesManually(): void {
   console.log('[AutoUpdater] Manual check triggered');
-  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+  autoUpdater.checkForUpdates().catch((err) => {
     console.log(`[AutoUpdater] Manual check failed: ${err.message}`);
   });
 }

@@ -1,5 +1,5 @@
 appId: com.hirevalerie.tracker
-productName: Valerie Tracker
+productName: Valerie Agent
 directories:
   output: dist
   buildResources: resources
@@ -31,6 +31,9 @@ nsis:
   uninstallerIcon: resources/icon.ico
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  shortcutName: Valerie Agent
+  uninstallDisplayName: Valerie Agent
+  artifactName: "Valerie Agent Setup ${version}.${ext}"
 electronLanguages: [en]
 publish:
   provider: github

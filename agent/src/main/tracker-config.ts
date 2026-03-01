@@ -3,7 +3,7 @@ import path from 'path';
 import { safeStorage } from 'electron';
 import { config } from './config';
 
-/** Shape of C:\ProgramData\ValerieTracker\config.json */
+/** Shape of C:\ProgramData\ValerieAgent\config.json (fallback: ValerieTracker) */
 interface TrackerConfigFile {
   apiBaseUrl: string;
   apiKey: string;
@@ -30,7 +30,8 @@ export type TrackerInitResult =
   | { status: 'not-configured' }
   | { status: 'key-invalid' };
 
-const CONFIG_JSON_PATH = path.join('C:', 'ProgramData', 'ValerieTracker', 'config.json');
+const CONFIG_JSON_PATH = path.join('C:', 'ProgramData', 'ValerieAgent', 'config.json');
+const CONFIG_JSON_PATH_LEGACY = path.join('C:', 'ProgramData', 'ValerieTracker', 'config.json');
 
 let cachedApiKey: string | null = null;
 let cachedSettings: TrackerSettings | null = null;
@@ -156,17 +157,33 @@ export async function initTrackerConfig(): Promise<TrackerInitResult> {
   return { status: 'ready', settings: merged };
 }
 
+// --- Legacy userData path (for installs that upgraded from "Valerie Tracker") ---
+
+function getLegacyUserDataPath(): string {
+  // Old productName was "Valerie Tracker", so userData was %APPDATA%/Valerie Tracker/
+  const appData = process.env.APPDATA || path.join(require('os').homedir(), 'AppData', 'Roaming');
+  return path.join(appData, 'Valerie Tracker');
+}
+
 // --- SafeStorage helpers ---
 
 function loadCachedApiKey(): string | null {
-  try {
-    if (!fs.existsSync(config.apiKeyCachePath)) return null;
-    if (!safeStorage.isEncryptionAvailable()) return null;
-    const encrypted = fs.readFileSync(config.apiKeyCachePath);
-    return safeStorage.decryptString(encrypted);
-  } catch {
-    return null;
+  // Try current path first, then legacy path from old "Valerie Tracker" installs
+  const paths = [config.apiKeyCachePath];
+  const legacyPath = path.join(getLegacyUserDataPath(), 'api-key-cache');
+  if (legacyPath !== config.apiKeyCachePath) paths.push(legacyPath);
+
+  for (const cachePath of paths) {
+    try {
+      if (!fs.existsSync(cachePath)) continue;
+      if (!safeStorage.isEncryptionAvailable()) return null;
+      const encrypted = fs.readFileSync(cachePath);
+      return safeStorage.decryptString(encrypted);
+    } catch {
+      continue;
+    }
   }
+  return null;
 }
 
 function cacheApiKey(apiKey: string): void {
@@ -212,15 +229,20 @@ function cacheApiBaseUrl(apiBaseUrl: string): void {
 // --- Config file reading ---
 
 function readConfigFile(): TrackerConfigFile | null {
-  try {
-    if (!fs.existsSync(CONFIG_JSON_PATH)) return null;
-    const raw = fs.readFileSync(CONFIG_JSON_PATH, 'utf-8');
-    const parsed = JSON.parse(raw);
-    if (!parsed.apiKey || !parsed.apiBaseUrl) return null;
-    return parsed as TrackerConfigFile;
-  } catch {
-    return null;
+  // Try primary path first, then legacy fallback for existing WorkSpace installs
+  for (const configPath of [CONFIG_JSON_PATH, CONFIG_JSON_PATH_LEGACY]) {
+    try {
+      if (!fs.existsSync(configPath)) continue;
+      const raw = fs.readFileSync(configPath, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (!parsed.apiKey || !parsed.apiBaseUrl) continue;
+      console.log(`Tracker: config loaded from ${configPath}`);
+      return parsed as TrackerConfigFile;
+    } catch {
+      continue;
+    }
   }
+  return null;
 }
 
 // --- Cached settings ---
@@ -231,13 +253,21 @@ interface CachedSettingsFile {
 }
 
 function readCachedSettingsRaw(): CachedSettingsFile | null {
-  try {
-    if (!fs.existsSync(config.cachedSettingsPath)) return null;
-    const raw = fs.readFileSync(config.cachedSettingsPath, 'utf-8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
+  // Try current path first, then legacy path from old "Valerie Tracker" installs
+  const paths = [config.cachedSettingsPath];
+  const legacyPath = path.join(getLegacyUserDataPath(), 'cached-settings.json');
+  if (legacyPath !== config.cachedSettingsPath) paths.push(legacyPath);
+
+  for (const settingsPath of paths) {
+    try {
+      if (!fs.existsSync(settingsPath)) continue;
+      const raw = fs.readFileSync(settingsPath, 'utf-8');
+      return JSON.parse(raw);
+    } catch {
+      continue;
+    }
   }
+  return null;
 }
 
 function loadCachedSettings(): TrackerSettings | null {

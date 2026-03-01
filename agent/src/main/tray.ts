@@ -28,7 +28,7 @@ function createTrayIcon(active: boolean): Electron.NativeImage {
 export function createTray(win: BrowserWindow): void {
   mainWindow = win;
   tray = new Tray(createTrayIcon(false));
-  tray.setToolTip('Valerie Tracker — Not tracking');
+  tray.setToolTip('Valerie Agent — Not tracking');
   updateTrayMenu();
 
   tray.on('click', () => {
@@ -48,10 +48,10 @@ export function createTray(win: BrowserWindow): void {
       const m = Math.floor((state.elapsedSec % 3600) / 60);
       const s = state.elapsedSec % 60;
       const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-      tray?.setToolTip(`Valerie Tracker — ${time}`);
+      tray?.setToolTip(`Valerie Agent — ${time}`);
       tray?.setImage(createTrayIcon(true));
     } else {
-      tray?.setToolTip('Valerie Tracker — Not tracking');
+      tray?.setToolTip('Valerie Agent — Not tracking');
       tray?.setImage(createTrayIcon(false));
     }
   }, 1000);

@@ -30,7 +30,7 @@ export default function LoginScreen({ onLogin }: Props) {
       <div style={styles.card}>
         <div style={styles.logo}>
           <div style={styles.logoMark}>V</div>
-          <span style={styles.logoText}>Valerie Tracker</span>
+          <span style={styles.logoText}>Valerie Agent</span>
         </div>
 
         <form onSubmit={handleSubmit}>
