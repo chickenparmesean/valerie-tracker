@@ -31,6 +31,7 @@ let state: TimerState = {
 
 let tickInterval: ReturnType<typeof setInterval> | null = null;
 let mainWindow: BrowserWindow | null = null;
+let tickCount = 0;
 
 export function setMainWindow(win: BrowserWindow): void {
   mainWindow = win;
@@ -41,7 +42,10 @@ export function getTimerState(): TimerState {
 }
 
 export function startTimer(projectId: string, taskId?: string): void {
+  console.log('[Timer] start() called — projectId:', projectId, 'taskId:', taskId ?? '(none)');
+
   if (state.isRunning) {
+    console.log('[Timer] Already running — stopping first');
     stopTimer();
   }
 
@@ -59,6 +63,8 @@ export function startTimer(projectId: string, taskId?: string): void {
     idleSec: 0,
   };
 
+  console.log('[Timer] State transition: stopped -> running, key:', idempotencyKey);
+
   // Persist to SQLite
   saveActiveTimeEntry({
     idempotencyKey,
@@ -70,10 +76,17 @@ export function startTimer(projectId: string, taskId?: string): void {
   // Queue initial sync
   queueTimeEntrySync();
 
+  tickCount = 0;
+
   // Start tick
   tickInterval = setInterval(() => {
     if (!state.isRunning || !state.startedAt) return;
     state.elapsedSec = Math.floor((Date.now() - state.startedAt.getTime()) / 1000);
+    tickCount++;
+    // Log every 60th tick (once per minute)
+    if (tickCount % 60 === 0) {
+      console.log('[Timer] Running — elapsed:', state.elapsedSec, 's, activeSec:', state.activeSec, 'idleSec:', state.idleSec);
+    }
     emitTimerUpdate();
   }, 1000);
 }
@@ -82,6 +95,9 @@ export function stopTimer(): void {
   if (!state.isRunning || !state.startedAt) return;
 
   const durationSec = Math.floor((Date.now() - state.startedAt.getTime()) / 1000);
+  console.log('[Timer] stop() called — duration:', durationSec, 's, activeSec:', state.activeSec, 'idleSec:', state.idleSec);
+  console.log('[Timer] State transition: running -> stopped');
+
   state.isRunning = false;
 
   // Queue final sync with STOPPED status
@@ -125,9 +141,14 @@ export function stopTimer(): void {
 
 export function resumeTimer(): void {
   const saved = getActiveTimeEntry();
-  if (!saved || saved.status !== 'RUNNING') return;
+  if (!saved || saved.status !== 'RUNNING') {
+    console.log('[Timer] resumeTimer() — no active time entry to resume');
+    return;
+  }
 
   const startedAt = new Date(saved.started_at);
+  console.log('[Timer] Resuming timer — projectId:', saved.project_id, 'taskId:', saved.task_id, 'startedAt:', saved.started_at);
+
   state = {
     isRunning: true,
     projectId: saved.project_id,
@@ -139,9 +160,17 @@ export function resumeTimer(): void {
     idleSec: 0,
   };
 
+  console.log('[Timer] State transition: stopped -> running (resume), elapsed so far:', state.elapsedSec, 's');
+
+  tickCount = 0;
+
   tickInterval = setInterval(() => {
     if (!state.isRunning || !state.startedAt) return;
     state.elapsedSec = Math.floor((Date.now() - state.startedAt.getTime()) / 1000);
+    tickCount++;
+    if (tickCount % 60 === 0) {
+      console.log('[Timer] Running — elapsed:', state.elapsedSec, 's, activeSec:', state.activeSec, 'idleSec:', state.idleSec);
+    }
     emitTimerUpdate();
   }, 1000);
 }

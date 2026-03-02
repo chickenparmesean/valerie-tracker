@@ -16,13 +16,18 @@ let flushInterval: ReturnType<typeof setInterval> | null = null;
 let currentWindow: WindowState | null = null;
 let pendingSamples: WindowState[] = [];
 let activeWindowModule: typeof import('@miniben90/x-win') | null = null;
+let pollCount = 0;
+let firstSuccess = true;
 
 export function startWindowTracking(): void {
+  console.log('[Window] Starting window tracker, interval:', config.windowPollMs, 'ms');
+
   // Dynamically import x-win (native module)
   try {
     activeWindowModule = require('@miniben90/x-win');
-  } catch {
-    console.error('Failed to load @miniben90/x-win — window tracking disabled');
+    console.log('[Window] @miniben90/x-win loaded successfully');
+  } catch (err: any) {
+    console.error('[Window] Failed to load @miniben90/x-win — window tracking disabled:', err.message);
     return;
   }
 
@@ -30,11 +35,23 @@ export function startWindowTracking(): void {
     const timerState = getTimerState();
     if (!timerState.isRunning || !activeWindowModule) return;
 
+    pollCount++;
+
     try {
       const win = activeWindowModule.activeWindow();
       const appName = win.info.name || 'Unknown';
       const windowTitle = win.title || '';
       const processPath = win.info.execName || '';
+
+      if (firstSuccess) {
+        console.log('[Window] First active window:', JSON.stringify({ appName, windowTitle, processPath }));
+        firstSuccess = false;
+      }
+
+      // Log every 20th poll (once per minute at 3s interval)
+      if (pollCount % 20 === 0) {
+        console.log('[Window] Poll #' + pollCount + ' — current:', appName);
+      }
 
       if (!currentWindow) {
         currentWindow = {
@@ -55,9 +72,11 @@ export function startWindowTracking(): void {
         currentWindow.windowTitle = windowTitle;
       } else {
         // Different app — finalize previous
+        const prevApp = currentWindow.appName;
         currentWindow.durationSec = Math.floor(
           (Date.now() - currentWindow.startedAt) / 1000
         );
+        console.log('[Window] App switch:', prevApp, '->', appName, '— title:', windowTitle, 'prevDuration:', currentWindow.durationSec, 's');
         if (currentWindow.durationSec > 0) {
           pendingSamples.push({ ...currentWindow });
         }
@@ -70,8 +89,8 @@ export function startWindowTracking(): void {
           durationSec: 0,
         };
       }
-    } catch {
-      // Ignore errors in window tracking
+    } catch (err: any) {
+      console.error('[Window] x-win error:', err.message);
     }
   }, config.windowPollMs);
 
@@ -98,6 +117,7 @@ function flushWindowSamples(): void {
   for (const sample of toFlush) {
     if (sample.durationSec <= 0) continue;
     const key = uuidv4();
+    console.log('[Window] Sample saved:', sample.appName, sample.durationSec, 's');
     queueForSync(
       'window_sample',
       {

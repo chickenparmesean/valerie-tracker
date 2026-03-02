@@ -15,9 +15,14 @@ let retryCount = 0;
 const MAX_BACKOFF_MS = 300_000; // 5 minutes
 
 export function startSyncEngine(): void {
+  console.log('[Sync] Starting sync engine, interval:', config.syncIntervalMs / 1000, 's');
+
   syncInterval = setInterval(async () => {
     const headers = getAuthHeaders();
-    if (!headers) return;
+    if (!headers) {
+      console.log('[Sync] No auth headers — skipping cycle');
+      return;
+    }
 
     // Sync running time entry before batch
     const timerState = getTimerState();
@@ -31,8 +36,13 @@ export function startSyncEngine(): void {
 }
 
 async function syncBatch(authHeaders: Record<string, string>): Promise<void> {
+  console.log('[Sync] Cycle start — checking outbox...');
+
   const items = getUnsyncedItems(100);
-  if (items.length === 0) return;
+  if (items.length === 0) {
+    console.log('[Sync] Nothing to sync');
+    return;
+  }
 
   // Group by type
   const payload: Record<string, unknown[]> = {
@@ -59,8 +69,17 @@ async function syncBatch(authHeaders: Record<string, string>): Promise<void> {
     }
   }
 
+  const te = (payload.timeEntries as unknown[]).length;
+  const as = (payload.activitySnapshots as unknown[]).length;
+  const ws = (payload.windowSamples as unknown[]).length;
+  const ss = (payload.screenshots as unknown[]).length;
+  console.log('[Sync] Found', items.length, 'pending items (timeEntries:', te, 'snapshots:', as, 'windows:', ws, 'screenshots:', ss, ')');
+
+  const url = `${config.apiBaseUrl}/api/tracker/sync`;
+  console.log('[Sync] POSTing to', url, '...');
+
   try {
-    const res = await fetch(`${config.apiBaseUrl}/api/tracker/sync`, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -70,16 +89,20 @@ async function syncBatch(authHeaders: Record<string, string>): Promise<void> {
     });
 
     if (res.ok) {
+      const responseBody = await res.text();
+      console.log('[Sync] ✓ Synced —', responseBody);
       markSynced(syncedKeys);
+      console.log('[Sync] Marked', syncedKeys.length, 'rows as synced');
       retryCount = 0;
     } else if (res.status === 401) {
-      console.error('Sync: 401 unauthorized');
+      console.error('[Sync] ✗ Failed — status: 401 (unauthorized)');
     } else {
-      console.error('Sync failed:', res.status);
+      const body = await res.text();
+      console.error('[Sync] ✗ Failed — status:', res.status, 'body:', body);
       retryCount++;
     }
-  } catch (err) {
-    console.error('Sync network error:', err);
+  } catch (err: any) {
+    console.error('[Sync] ✗ Network error:', err.message);
     retryCount++;
   }
 }
@@ -87,12 +110,18 @@ async function syncBatch(authHeaders: Record<string, string>): Promise<void> {
 async function uploadScreenshots(authHeaders: Record<string, string>): Promise<void> {
   const screenshots = getUnuploadedScreenshots(5);
 
+  if (screenshots.length > 0) {
+    console.log('[Sync] Found', screenshots.length, 'screenshots to upload');
+  }
+
   for (const ss of screenshots) {
     try {
       const metadata = JSON.parse(ss.metadata);
 
       // Get presigned URL
-      const presignRes = await fetch(`${config.apiBaseUrl}/api/tracker/screenshots/presign`, {
+      const presignUrl = `${config.apiBaseUrl}/api/tracker/screenshots/presign`;
+      console.log('[Screenshot] Requesting presigned URL...');
+      const presignRes = await fetch(presignUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -105,7 +134,10 @@ async function uploadScreenshots(authHeaders: Record<string, string>): Promise<v
         }),
       });
 
-      if (!presignRes.ok) continue;
+      if (!presignRes.ok) {
+        console.error('[Screenshot] Presign request failed — status:', presignRes.status);
+        continue;
+      }
 
       const { uploadUrl, storagePath, publicUrl } = await presignRes.json();
 
@@ -117,7 +149,12 @@ async function uploadScreenshots(authHeaders: Record<string, string>): Promise<v
         body: fileBuffer,
       });
 
-      if (!uploadRes.ok) continue;
+      if (!uploadRes.ok) {
+        console.error('[Screenshot] Upload FAILED — status:', uploadRes.status);
+        continue;
+      }
+
+      console.log('[Screenshot] Upload complete —', publicUrl);
 
       // Queue screenshot metadata for sync
       queueForSync(
@@ -138,8 +175,8 @@ async function uploadScreenshots(authHeaders: Record<string, string>): Promise<v
       } catch {
         // ignore
       }
-    } catch (err) {
-      console.error('Screenshot upload failed:', err);
+    } catch (err: any) {
+      console.error('[Screenshot] Upload FAILED:', err.message);
     }
   }
 }

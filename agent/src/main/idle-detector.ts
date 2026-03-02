@@ -12,8 +12,13 @@ export function setIdleWindow(win: BrowserWindow): void {
 }
 
 export function startIdleDetection(): void {
+  const thresholdMin = config.defaultIdleThresholdSec / 60;
+  const pollIntervalSec = config.idlePollMs / 1000;
+  console.log('[Idle] Starting idle detector, threshold:', thresholdMin, 'min, poll interval:', pollIntervalSec, 's');
+
   // Listen for lock screen
   powerMonitor.on('lock-screen', () => {
+    console.log('[Idle] Lock screen detected');
     handleIdleDetected();
   });
 
@@ -21,9 +26,13 @@ export function startIdleDetection(): void {
     const timerState = getTimerState();
     if (!timerState.isRunning) return;
 
-    const idleTime = powerMonitor.getSystemIdleTime();
+    const idleTimeSec = powerMonitor.getSystemIdleTime();
+    const thresholdSec = config.defaultIdleThresholdSec;
 
-    if (idleTime >= config.defaultIdleThresholdSec && !isIdle) {
+    console.log('[Idle] Check — idle time:', idleTimeSec, 's, threshold:', thresholdSec, 's');
+
+    if (idleTimeSec >= thresholdSec && !isIdle) {
+      console.log('[Idle] ⚠ IDLE THRESHOLD REACHED — idle for', idleTimeSec, 's');
       handleIdleDetected();
     }
   }, config.idlePollMs);

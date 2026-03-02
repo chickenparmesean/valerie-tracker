@@ -28,6 +28,9 @@ import { startSyncEngine, stopSyncEngine } from './sync';
 import { enableAutoLaunch } from './auto-launch';
 import { initAutoUpdater, stopAutoUpdater } from './auto-updater';
 
+// Enable Chromium internal logging
+app.commandLine.appendSwitch('enable-logging');
+
 // Disable GPU acceleration to prevent renderer crash on AWS WorkSpaces
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('disable-gpu');
@@ -38,6 +41,24 @@ app.commandLine.appendSwitch('lang', 'en-US');
 
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
+
+function probeNativeModules(): void {
+  console.log('[Native] Probing native modules...');
+  const modules = [
+    { name: '@miniben90/x-win', test: () => { const xwin = require('@miniben90/x-win'); return typeof xwin.activeWindow === 'function'; } },
+    { name: 'screenshot-desktop', test: () => { const sd = require('screenshot-desktop'); return typeof sd === 'function' || typeof sd.listDisplays === 'function'; } },
+    { name: 'better-sqlite3', test: () => { const Db = require('better-sqlite3'); return typeof Db === 'function'; } },
+    { name: 'sharp', test: () => { const sharp = require('sharp'); return typeof sharp === 'function'; } },
+  ];
+  for (const mod of modules) {
+    try {
+      const ok = mod.test();
+      console.log(`[Native] ✓ ${mod.name} loaded (test=${ok})`);
+    } catch (err: any) {
+      console.error(`[Native] ✗ ${mod.name} FAILED: ${err.message}`);
+    }
+  }
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -64,6 +85,16 @@ function createWindow(): void {
     const filePath = path.join(__dirname, '..', 'dist-renderer', 'index.html');
     mainWindow.loadFile(filePath);
   }
+
+  // DevTools: try undocked mode with explicit dimensions
+  mainWindow.webContents.on('did-finish-load', () => {
+    try {
+      mainWindow?.webContents.openDevTools({ mode: 'undocked' });
+      console.log('[DevTools] Opened in undocked mode');
+    } catch (err: any) {
+      console.error('[DevTools] Failed to open:', err.message);
+    }
+  });
 
   // Hide to tray on close
   mainWindow.on('close', (event) => {
@@ -92,6 +123,9 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
+  // Probe native modules first — before anything else
+  probeNativeModules();
+
   // Initialize database (always needed)
   initDatabase();
 
@@ -119,6 +153,7 @@ app.whenReady().then(async () => {
 
     if (result.status === 'ready') {
       console.log('Tracker: config loaded, starting engines');
+      console.log('[Init] trackerConfig result:', JSON.stringify(result));
       // Notify renderer that auth succeeded
       mainWindow?.webContents.once('did-finish-load', () => {
         mainWindow?.webContents.send('config:ready');
@@ -152,11 +187,45 @@ app.whenReady().then(async () => {
 });
 
 function startEngines(): void {
-  startActivityDetection();
-  startWindowTracking();
-  startScreenshotSchedule();
-  startIdleDetection();
-  startSyncEngine();
+  try {
+    console.log('[Engine] Starting activity detector...');
+    startActivityDetection();
+    console.log('[Engine] ✓ Activity detector started');
+  } catch (err: any) {
+    console.error(`[Engine] ✗ Activity detector FAILED: ${err.message}`, err.stack);
+  }
+
+  try {
+    console.log('[Engine] Starting window tracker...');
+    startWindowTracking();
+    console.log('[Engine] ✓ Window tracker started');
+  } catch (err: any) {
+    console.error(`[Engine] ✗ Window tracker FAILED: ${err.message}`, err.stack);
+  }
+
+  try {
+    console.log('[Engine] Starting screenshot schedule...');
+    startScreenshotSchedule();
+    console.log('[Engine] ✓ Screenshot schedule started');
+  } catch (err: any) {
+    console.error(`[Engine] ✗ Screenshot schedule FAILED: ${err.message}`, err.stack);
+  }
+
+  try {
+    console.log('[Engine] Starting idle detector...');
+    startIdleDetection();
+    console.log('[Engine] ✓ Idle detector started');
+  } catch (err: any) {
+    console.error(`[Engine] ✗ Idle detector FAILED: ${err.message}`, err.stack);
+  }
+
+  try {
+    console.log('[Engine] Starting sync engine...');
+    startSyncEngine();
+    console.log('[Engine] ✓ Sync engine started');
+  } catch (err: any) {
+    console.error(`[Engine] ✗ Sync engine FAILED: ${err.message}`, err.stack);
+  }
 }
 
 app.on('before-quit', () => {

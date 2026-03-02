@@ -53,6 +53,7 @@ export function queueForSync(
     VALUES (?, ?, ?, 0)
   `);
   stmt.run(type, JSON.stringify(payload), idempotencyKey);
+  console.log('[DB] Outbox insert — type:', type, 'idempotencyKey:', idempotencyKey);
 }
 
 export function getUnsyncedItems(limit = 100): Array<{
@@ -63,11 +64,13 @@ export function getUnsyncedItems(limit = 100): Array<{
   const stmt = db.prepare(
     'SELECT type, payload, idempotency_key FROM sync_outbox WHERE synced = 0 ORDER BY id ASC LIMIT ?'
   );
-  return stmt.all(limit) as Array<{
+  const rows = stmt.all(limit) as Array<{
     type: string;
     payload: string;
     idempotency_key: string;
   }>;
+  console.log('[DB] Reading unsynced rows — found:', rows.length);
+  return rows;
 }
 
 export function markSynced(idempotencyKeys: string[]): void {
@@ -92,6 +95,7 @@ export function queueScreenshot(
     VALUES (?, ?, ?)
   `);
   stmt.run(idempotencyKey, filePath, JSON.stringify(metadata));
+  console.log('[DB] Outbox insert — type: screenshot_queue idempotencyKey:', idempotencyKey);
 }
 
 export function getUnuploadedScreenshots(limit = 5): Array<{
