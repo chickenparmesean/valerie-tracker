@@ -18,6 +18,7 @@ let pendingSamples: WindowState[] = [];
 let activeWindowModule: typeof import('@miniben90/x-win') | null = null;
 let pollCount = 0;
 let firstSuccess = true;
+let skipLogged = false;
 
 export function startWindowTracking(): void {
   console.log('[Window] Starting window tracker, interval:', config.windowPollMs, 'ms');
@@ -33,7 +34,17 @@ export function startWindowTracking(): void {
 
   windowInterval = setInterval(() => {
     const timerState = getTimerState();
-    if (!timerState.isRunning || !activeWindowModule) return;
+    if (!timerState.isRunning) {
+      if (!skipLogged) {
+        console.log('[Window] Skipping — timer not running');
+        skipLogged = true;
+      }
+      return;
+    }
+    // Reset skip log flag once timer is running
+    skipLogged = false;
+
+    if (!activeWindowModule) return;
 
     pollCount++;
 

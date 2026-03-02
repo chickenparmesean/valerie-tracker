@@ -9,18 +9,28 @@ let windowSeconds = 0;
 let activeSeconds = 0;
 let pollCount = 0;
 let firstPoll = true;
+let skipLogged = false;
 
 export function startActivityDetection(): void {
   windowSeconds = 0;
   activeSeconds = 0;
   pollCount = 0;
   firstPoll = true;
+  skipLogged = false;
 
   console.log('[Activity] Starting activity monitor, interval:', config.activityPollMs, 'ms');
 
   activityInterval = setInterval(() => {
     const timerState = getTimerState();
-    if (!timerState.isRunning) return;
+    if (!timerState.isRunning) {
+      if (!skipLogged) {
+        console.log('[Activity] Skipping — timer not running');
+        skipLogged = true;
+      }
+      return;
+    }
+    // Reset skip log flag once timer is running
+    skipLogged = false;
 
     let idleTime: number;
     try {
