@@ -32,6 +32,7 @@ export default function MainScreen({ onLogout }: Props) {
   const [todayTotalSec, setTodayTotalSec] = useState<number | null>(null);
   const [addingTaskForProject, setAddingTaskForProject] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const addTaskInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -96,6 +97,21 @@ export default function MainScreen({ onLogout }: Props) {
     }
   };
 
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    console.log('[UI] Manual project refresh triggered');
+    setRefreshing(true);
+    try {
+      const list = await window.electronAPI.projects.list();
+      setProjects(list);
+      console.log('[UI] Projects refreshed — count:', list.length);
+    } catch {
+      // Silently fail
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handlePlay = async (projectId: string, taskId?: string) => {
     await window.electronAPI.timer.start(projectId, taskId);
     setActiveProject(projectId);
@@ -157,6 +173,17 @@ export default function MainScreen({ onLogout }: Props) {
 
   return (
     <div style={styles.container}>
+      {/* Keyframes for refresh spin animation */}
+      <style>{`
+        @keyframes valerie-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .valerie-refreshing { animation: valerie-spin 0.7s linear infinite; }
+        .valerie-refresh-btn:hover { background: rgba(255,255,255,0.12) !important; }
+        .valerie-refresh-btn:active { opacity: 0.7; }
+      `}</style>
+
       {/* Header */}
       <div style={styles.header}>
         <div style={styles.logoRow}>
@@ -167,6 +194,30 @@ export default function MainScreen({ onLogout }: Props) {
           </div>
           <span style={styles.logoText}>Valerie Agent</span>
         </div>
+
+        {/* Refresh button */}
+        <button
+          className="valerie-refresh-btn"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          title="Refresh project list"
+          style={styles.refreshBtn}
+        >
+          <svg
+            className={refreshing ? 'valerie-refreshing' : ''}
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 12a9 9 0 1 1-2.636-6.364" />
+            <polyline points="21 3 21 9 15 9" />
+          </svg>
+        </button>
       </div>
 
       {/* Projects */}
@@ -332,6 +383,21 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     fontSize: 15,
     color: '#FFFFFF',
+  },
+  refreshBtn: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 28,
+    height: 28,
+    borderRadius: '50%',
+    color: '#FFFFFF',
+    padding: 4,
+    flexShrink: 0,
+    transition: 'background 0.15s',
   },
   projectList: {
     flex: 1,
