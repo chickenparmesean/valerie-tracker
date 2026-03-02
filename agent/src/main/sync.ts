@@ -186,4 +186,5 @@ export function stopSyncEngine(): void {
     clearInterval(syncInterval);
     syncInterval = null;
   }
+  console.log('[Sync] Stopped');
 }

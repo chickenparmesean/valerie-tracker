@@ -157,6 +157,7 @@ export function stopWindowTracking(): void {
   }
   currentWindow = null;
   pendingSamples = [];
+  console.log('[Window] Stopped');
 }
 
 export function getCurrentApp(): string {

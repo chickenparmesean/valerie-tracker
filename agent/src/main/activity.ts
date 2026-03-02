@@ -92,6 +92,7 @@ export function stopActivityDetection(): void {
     clearInterval(activityInterval);
     activityInterval = null;
   }
+  console.log('[Activity] Stopped');
 }
 
 export function getCurrentActivityPct(): number {

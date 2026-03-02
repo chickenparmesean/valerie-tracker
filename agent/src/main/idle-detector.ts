@@ -80,4 +80,5 @@ export function stopIdleDetection(): void {
   }
   isIdle = false;
   idleSince = null;
+  console.log('[Idle] Stopped');
 }

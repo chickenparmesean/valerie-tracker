@@ -25,6 +25,7 @@ export function stopScreenshotSchedule(): void {
     clearTimeout(screenshotTimeout);
     screenshotTimeout = null;
   }
+  console.log('[Screenshot] Stopped');
 }
 
 function scheduleNextScreenshot(): void {
