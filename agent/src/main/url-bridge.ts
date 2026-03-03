@@ -18,7 +18,16 @@ function setCorsHeaders(res: http.ServerResponse): void {
 export function getLastUrl(): string | null {
   const settings = getTrackerSettings();
   if (!settings?.trackUrls) return null;
-  if (Date.now() - cachedTimestamp > STALE_MS) return null;
+  const age = Date.now() - cachedTimestamp;
+  if (age > STALE_MS) {
+    console.log(`[URLBridge] getLastUrl() → null (stale: ${Math.round(age / 1000)}s old)`);
+    return null;
+  }
+  if (!cachedUrl) {
+    console.log('[URLBridge] getLastUrl() → null (no recent URL)');
+    return null;
+  }
+  console.log(`[URLBridge] getLastUrl() → ${cachedUrl} (age: ${Math.round(age / 1000)}s)`);
   return cachedUrl;
 }
 
@@ -47,6 +56,8 @@ export function startUrlBridge(): void {
           const parsed = JSON.parse(body);
           cachedUrl = parsed.url ?? null;
           cachedTimestamp = Date.now();
+          console.log(`[URLBridge] Received URL: ${cachedUrl}`);
+          console.log('[URLBridge] Cached URL updated (age: 0s)');
         } catch {
           // ignore malformed JSON
         }

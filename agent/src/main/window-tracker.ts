@@ -88,6 +88,16 @@ export function startWindowTracking(): void {
       const isChrome = appName.toLowerCase().includes('chrome');
       const url = (isChrome && settings?.trackUrls) ? getLastUrl() : null;
 
+      if (isChrome) {
+        if (url) {
+          console.log(`[Window] URL lookup: ${url}`);
+          console.log(`[Window] URL attached to sample: ${url}`);
+        } else {
+          console.log('[Window] URL lookup: null');
+          console.log('[Window] No URL for Chrome sample');
+        }
+      }
+
       if (!currentWindow) {
         currentWindow = {
           appName,
