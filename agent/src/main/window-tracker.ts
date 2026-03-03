@@ -28,6 +28,7 @@ let activeWindowModule: typeof import('@miniben90/x-win') | null = null;
 let pollCount = 0;
 let firstSuccess = true;
 let skipLogged = false;
+let lastLoggedTitle: string | null = null;
 
 export function startWindowTracking(): void {
   console.log('[Window] Starting window tracker, interval:', config.windowPollMs, 'ms');
@@ -74,8 +75,9 @@ export function startWindowTracking(): void {
       }
 
       const pageTitle = extractChromePageTitle(appName, windowTitle);
-      if (pageTitle) {
-        console.log('[Window] Chrome page title extracted:', JSON.stringify(pageTitle));
+      if (pageTitle && pageTitle !== lastLoggedTitle) {
+        console.log('[Window] Chrome page title:', pageTitle);
+        lastLoggedTitle = pageTitle;
       }
 
       if (!currentWindow) {
