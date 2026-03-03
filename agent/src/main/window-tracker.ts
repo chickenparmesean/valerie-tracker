@@ -7,8 +7,17 @@ interface WindowState {
   appName: string;
   windowTitle: string;
   processPath: string;
+  pageTitle: string | null;
   startedAt: number;
   durationSec: number;
+}
+
+function extractChromePageTitle(appName: string, windowTitle: string): string | null {
+  if (!appName.includes('Chrome')) return null;
+  const suffix = ' - Google Chrome';
+  if (!windowTitle.endsWith(suffix)) return null;
+  const title = windowTitle.slice(0, -suffix.length);
+  return title || null;
 }
 
 let windowInterval: ReturnType<typeof setInterval> | null = null;
@@ -64,11 +73,17 @@ export function startWindowTracking(): void {
         console.log('[Window] Poll #' + pollCount + ' — current:', appName);
       }
 
+      const pageTitle = extractChromePageTitle(appName, windowTitle);
+      if (pageTitle) {
+        console.log('[Window] Chrome page title extracted:', JSON.stringify(pageTitle));
+      }
+
       if (!currentWindow) {
         currentWindow = {
           appName,
           windowTitle,
           processPath,
+          pageTitle,
           startedAt: Date.now(),
           durationSec: 0,
         };
@@ -81,6 +96,7 @@ export function startWindowTracking(): void {
           (Date.now() - currentWindow.startedAt) / 1000
         );
         currentWindow.windowTitle = windowTitle;
+        currentWindow.pageTitle = pageTitle;
       } else {
         // Different app — finalize previous
         const prevApp = currentWindow.appName;
@@ -96,6 +112,7 @@ export function startWindowTracking(): void {
           appName,
           windowTitle,
           processPath,
+          pageTitle,
           startedAt: Date.now(),
           durationSec: 0,
         };
@@ -137,6 +154,7 @@ function flushWindowSamples(): void {
         appName: sample.appName,
         windowTitle: sample.windowTitle,
         processPath: sample.processPath,
+        pageTitle: sample.pageTitle,
         durationSec: sample.durationSec,
         timeEntryId: timerState.idempotencyKey,
       },
