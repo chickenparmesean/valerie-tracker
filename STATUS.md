@@ -45,7 +45,7 @@ All 13 API routes implemented with API key auth (validateApiKey), Zod validation
 
 ## Phase 3: Electron Agent -- DONE
 
-15 main process modules + preload + renderer (3 screens).
+16 main process modules + preload + renderer (3 screens).
 
 | Module | File | Status |
 |--------|------|--------|
@@ -56,7 +56,8 @@ All 13 API routes implemented with API key auth (validateApiKey), Zod validation
 | Database | database.ts | Done -- SQLite outbox (better-sqlite3) |
 | Timer | timer.ts | Done -- start/stop/resume, UUID keys |
 | Activity | activity.ts | Done -- powerMonitor 1s polling |
-| Window tracking | window-tracker.ts | Done -- x-win 3s polling, heartbeat |
+| Window tracking | window-tracker.ts | Done -- x-win 3s polling, heartbeat, URL from url-bridge |
+| URL bridge | url-bridge.ts | Done -- localhost HTTP server on 127.0.0.1:19876, receives URLs from Chrome extension |
 | Screenshots | screenshot.ts | Done -- randomized, WebP via sharp |
 | Idle detection | idle-detector.ts | Done -- idle prompt dialog |
 | Sync engine | sync.ts | Done -- 60s batch + screenshot upload |
@@ -150,7 +151,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 
 | Item | Detail |
 |------|--------|
-| Installer | Valerie Agent Setup 0.3.0.exe |
+| Installer | Valerie Agent Setup 0.3.1.exe |
 | Size | ~81 MB |
 | Format | NSIS (non-silent, user chooses install dir) |
 | Architecture | Windows x64 only |
@@ -161,7 +162,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Publish command | `cd agent && npm run publish:agent` (requires `GH_TOKEN` env var with repo scope) |
 | Output dir | agent/dist/ |
 | Tested | Installs and launches on dev machine and AWS WorkSpace, all native modules load, full sync verified |
-| Note | Versions 0.1.1-0.1.5 were intermediate debug/fix builds during WorkSpace testing. v0.1.6 was the last release under the "Valerie Tracker" name. v0.1.7 rebranded to "Valerie Agent". v0.1.8 bundled icon.ico for runtime window icon. v0.1.9 fixed exe icon embedding. v0.2.0 added `perMachine: true` for C: drive install on WorkSpaces golden images. Versions v0.2.1-v0.2.5 were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. v0.2.6 fixed screenshot metadata URLs + removed screenshot notification. v0.2.7 fixed stale timer resume after reboot + added auto-stop on prolonged unanswered idle. v0.2.8 added close warning dialog on window close + note input wired to sync payload. v0.2.8 added close warning + note input. v0.3.0 added Chrome extension URL tracking with localhost HTTP bridge and NSIS installer bundling. v0.3.1 is the current stable release. |
+| Note | Versions 0.1.1-0.1.5 were intermediate debug/fix builds during WorkSpace testing. v0.1.6 was the last release under the "Valerie Tracker" name. v0.1.7 rebranded to "Valerie Agent". v0.1.8 bundled icon.ico for runtime window icon. v0.1.9 fixed exe icon embedding. v0.2.0 added `perMachine: true` for C: drive install on WorkSpaces golden images. Versions v0.2.1-v0.2.5 were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. v0.2.6 fixed screenshot metadata URLs + removed screenshot notification. v0.2.7 fixed stale timer resume after reboot + added auto-stop on prolonged unanswered idle. v0.2.8 added close warning dialog on window close + note input wired to sync payload. v0.3.0 added Chrome extension URL tracking with localhost HTTP bridge and NSIS installer bundling. v0.3.1 added CORS fix on URL bridge, app display name fix, and CRX extension packaging with persistent RSA signing key. v0.3.1 is the current stable release. |
 
 ### WorkSpace Testing Results (2026-02-27)
 
@@ -230,11 +231,13 @@ valerie-tracker/
     lib/                    -- auth.ts, prisma.ts, supabase-server.ts (supabase-browser.ts + auth-helpers.ts deleted)
 
   agent/src/
-    main/                   -- 15 modules (entry, config, tracker-config, auth, db, timer, activity,
-                               window-tracker, screenshot, idle, sync, tray, auto-launch, auto-updater, ipc)
+    main/                   -- 16 modules (entry, config, tracker-config, auth, db, timer, activity,
+                               window-tracker, url-bridge, screenshot, idle, sync, tray, auto-launch, auto-updater, ipc)
     preload/                -- contextBridge (auth, timer, projects, config, idle, app)
     renderer/               -- App, main, index.html
     renderer/screens/       -- Login (--dev only), Main, IdleDialog, ErrorScreen
+  agent/chrome-extension/   -- Manifest V3 Chrome extension (background.js, manifest.json)
+  agent/build/              -- pack-extension.js, generate-extension-key.js, extension.pem, installer.nsh
 ```
 
 ---
@@ -334,7 +337,7 @@ All WorkSpaces launched from this bundle will have the agent pre-installed on th
 
 ## Known Issues / Next Steps
 
-**Confirmed working on WorkSpaces (v0.2.8):**
+**Confirmed working on WorkSpaces (v0.3.1):**
 - All native modules: @miniben90/x-win, screenshot-desktop, better-sqlite3, sharp
 - Timer start/stop/resume with state transitions
 - Stale timer detection on resume -- auto-stops with correct durationSec when gap exceeds idle threshold (prevents inflated time entries after reboot)
@@ -344,6 +347,8 @@ All WorkSpaces launched from this bundle will have the agent pre-installed on th
 - Activity detection via powerMonitor.getSystemIdleTime() -- 1s polling, 60s snapshots
 - Window tracking via x-win -- 3s polling, heartbeat/pulse aggregation, app switch detection
 - Chrome page title extraction from window titles
+- Chrome extension URL tracking via localhost HTTP bridge (v0.3.0) -- extension POSTs active tab URL to 127.0.0.1:19876, agent attaches URL to Chrome window samples in sync payload
+- CORS headers on URL bridge (v0.3.1) -- extension fetch() no longer blocked by CORS policy
 - Screenshot capture + WebP compression (73-96KB), metadata includes storageUrl/storagePath
 - Idle detection with configurable threshold
 - Local SQLite outbox -- inserts, reads, sync marking
@@ -358,12 +363,18 @@ All WorkSpaces launched from this bundle will have the agent pre-installed on th
 - Screenshots not uploading: POST /api/tracker/screenshots/presign returns 400 on va-platform. Agent-side fix in v0.2.6 now correctly populates storageUrl/storagePath on metadata before outbox insert. Presign endpoint field mismatch on va-platform side still needs fixing.
 - Today total shows fallback data: GET /api/tracker/time-entries returns 404. Endpoint not yet built on va-platform. Agent falls back to local SQLite which loses data on WorkSpace restart.
 - Page titles not visible in dashboard: Agent sends pageTitle in sync payload as of v0.2.5. Va-platform needs to add pageTitle column to WindowSample, accept it in sync Zod schema, and display in dashboard.
+- URLs not visible in dashboard: Agent sends url in sync payload as of v0.3.0. Va-platform needs to add url String? to WindowSample Prisma model, accept it in sync Zod schema, and display in dashboard.
 
 **Va-platform integration requirements (handoff):**
 1. Fix POST /api/tracker/screenshots/presign -- accept: filename (string), contentType (string), timeEntryIdempotencyKey (string), capturedAt (ISO string), activityPct (number), activeApp (string), fileSizeBytes (number)
-2. Add pageTitle String? to WindowSample Prisma model + sync route Zod schema
+2. Add pageTitle String? and url String? to WindowSample Prisma model + sync route Zod schema
 3. Build GET /api/tracker/time-entries?date=YYYY-MM-DD -- returns array of { durationSec, status, startedAt, stoppedAt } filtered by userId from API key
 4. Aggregate pageTitle data for "Top Sites" dashboard display
+
+**Needs WorkSpace verification (v0.3.1):**
+- Chrome extension auto-install via CRX registry: NSIS installer copies .crx to C:\ProgramData\ValerieAgent\ and writes Chrome external extension registry keys (HKLM\SOFTWARE\Google\Chrome\Extensions\lpdlfbkigloncemklhgcclimjfbglfkk). Load Unpacked from C:\ProgramData\ValerieAgent\chrome-extension\ works, but registry-based CRX auto-install is untested on WorkSpaces.
+- CORS fix on URL bridge: Access-Control-Allow-Origin headers added in v0.3.1. Needs WorkSpace verification that extension fetch() succeeds without CORS errors.
+- Extension + CRX persistence on golden image: Extension files in C:\ProgramData (C: drive) and registry keys in HKLM should survive image capture. Needs verification.
 
 **Standing issues (agent side):**
 - DevTools permanently broken on WorkSpaces due to Chromium Intl.Locale bug with empty locale. Use console.log debugging via PowerShell instead. Cannot be fixed with flags.

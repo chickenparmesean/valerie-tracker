@@ -2,7 +2,7 @@
 
 ## Implementation Notes (2026-02-27)
 
-All recommended packages were used and work correctly on AWS WorkSpaces. Testing was conducted on a real AWS WorkSpace. Current stable version is v0.2.8. Versions v0.2.1-v0.2.5 added debug logging, screenshot privacy gating, single instance lock, graceful shutdown, Chrome page title tracking, project refresh button, and today total display. v0.2.6 fixed screenshot metadata URLs and removed screenshot notification. v0.2.7 fixed stale timer resume after reboot and added auto-stop on prolonged unanswered idle. v0.2.8 added close warning dialog on window close when timer is running and wired note input end-to-end to sync payload. Agent now syncs to va-platform at staging.hirevalerie.com.
+All recommended packages were used and work correctly on AWS WorkSpaces. Testing was conducted on a real AWS WorkSpace. Current stable version is v0.3.1. Versions v0.2.1-v0.2.5 added debug logging, screenshot privacy gating, single instance lock, graceful shutdown, Chrome page title tracking, project refresh button, and today total display. v0.2.6 fixed screenshot metadata URLs and removed screenshot notification. v0.2.7 fixed stale timer resume after reboot and added auto-stop on prolonged unanswered idle. v0.2.8 added close warning dialog on window close when timer is running and wired note input end-to-end to sync payload. v0.3.0 added Chrome extension URL tracking via a Manifest V3 extension that POSTs the active tab URL to a localhost HTTP bridge (127.0.0.1:19876) in the Electron agent; the agent attaches the URL to Chrome window samples in the sync payload. v0.3.1 added CORS headers on the URL bridge (required for extension fetch), fixed app display name in Task Manager, and switched to CRX packaging with a persistent RSA signing key for reproducible builds and registry-based Chrome auto-install. Agent now syncs to va-platform at staging.hirevalerie.com.
 
 ### Package Performance on AWS WorkSpaces
 
@@ -71,6 +71,8 @@ Three approaches were evaluated for programmatic screenshot capture on Windows:
 The deprecated `active-win` (sindresorhus) is now ESM-only and unmaintained. The `@paymoapp/active-window` alternative has useful features but carries a GPL-3.0 license. PowerShell interop works but adds 50–150ms per call due to shell startup. **Avoid `node-ffi-napi`** entirely—it has critical incompatibilities with modern Electron (crashes on async calls, binding load failures).
 
 Poll every **3 seconds** and aggregate time-per-application by tracking the previous app name and accumulating elapsed duration. This creates a clean `active_window_samples` array per sync interval showing app name, window title, and duration.
+
+**URL tracking (v0.3.0):** A Manifest V3 Chrome extension (`agent/chrome-extension/`) tracks the active tab URL via `chrome.tabs.onActivated` and `chrome.tabs.onUpdated`, and POSTs it to a localhost HTTP bridge (`agent/src/main/url-bridge.ts`) at `127.0.0.1:19876`. The window tracker reads the cached URL via `getLastUrl()` and attaches it to Chrome window samples as the `url` field. Internal Chrome pages (`chrome://`, `about:`, `devtools://`, `chrome-extension://`) are filtered to null by the extension. The URL bridge has a 30-second staleness check -- if the extension stops reporting, `getLastUrl()` returns null. Gated behind the `trackUrls` config flag. Uses zero new npm dependencies (Node.js built-in `http` module for the bridge, plain JavaScript for the extension).
 
 ### Activity detection: built-in `powerMonitor` with `desktop-idle` fallback
 

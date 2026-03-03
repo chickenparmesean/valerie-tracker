@@ -1,7 +1,7 @@
 # Valerie Tracker -- Technical Context
 
 > Comprehensive reference for anyone (human or AI) integrating the Valerie Agent into va-platform.
-> Based on actual source code as of v0.2.8, branch: staging.
+> Based on actual source code as of v0.3.1, branch: staging.
 
 ---
 
@@ -11,7 +11,7 @@
 
 Valerie Agent is an Electron 34 desktop app with three process types:
 
-- **Main process** (`agent/src/main/index.ts`) -- Node.js runtime. Runs all data collection, sync, auth, and system integration. 15 modules.
+- **Main process** (`agent/src/main/index.ts`) -- Node.js runtime. Runs all data collection, sync, auth, and system integration. 16 modules.
 - **Renderer process** (`agent/src/renderer/App.tsx`) -- Chromium-based React UI. 4 screens: Loading, LoginScreen (dev-only), MainScreen, ErrorScreen. Plus IdleDialog overlay.
 - **Preload process** (`agent/src/preload/index.ts`) -- Bridge between main and renderer via `contextBridge.exposeInMainWorld('electronAPI', ...)`. Enforces `contextIsolation: true` and `nodeIntegration: false`.
 
@@ -21,7 +21,7 @@ Before `app.whenReady()`, the agent calls `app.requestSingleInstanceLock()`. If 
 
 ### Graceful Shutdown (v0.2.3)
 
-The `before-quit` event handler calls cleanup/stop on all engine modules: activity detection, window tracking, screenshot schedule, idle detection, sync engine, auto-updater, and tray. This ensures timers are flushed, pending data is saved, and resources are released on quit.
+The `before-quit` event handler calls cleanup/stop on all engine modules: activity detection, URL bridge, window tracking, screenshot schedule, idle detection, sync engine, auto-updater, and tray. This ensures timers are flushed, pending data is saved, and resources are released on quit.
 
 ### Startup Sequence
 
@@ -35,7 +35,7 @@ The `before-quit` event handler calls cleanup/stop on all engine modules: activi
    - `registerIpcHandlers()`
    - `createWindow()` (380x640 BrowserWindow)
    - `initTrackerConfig()` -- reads config.json, validates API key, fetches server config
-   - If `status === 'ready'`: send `config:ready` to renderer, `startEngines()`, `resumeTimer()`
+   - If `status === 'ready'`: send `config:ready` to renderer, `startEngines()` (includes `startUrlBridge()` for Chrome extension communication), `resumeTimer()`
    - If failed: send `config:error` to renderer (shows ErrorScreen)
 6. **Dev mode** (`--dev` flag):
    - Full Supabase Auth flow (LoginScreen)
@@ -171,12 +171,14 @@ All renderer-to-main communication goes through the preload bridge. Channels:
     windowTitle: string;      // e.g. "GitHub - Google Chrome"
     processPath: string;      // e.g. "chrome.exe"
     pageTitle: string | null; // extracted Chrome page title (e.g. "GitHub") or null for non-Chrome apps
+    url: string | null;       // full URL from Chrome extension (v0.3.0) or null for non-Chrome apps / extension not installed
     durationSec: number;      // how long this app was in foreground
     timeEntryId: string;      // parent TimeEntry's idempotencyKey
   }
   ```
 - **Logic**: Uses heartbeat pattern via `@miniben90/x-win`. Every 3s, gets active window. If same app as current, extends `durationSec`. If different app, finalizes previous window sample (adds to pending list), starts new one. Every 60s, flushes all pending samples to sync queue. On engine stop, flushes remaining samples.
-- **Page title extraction (v0.2.4)**: For Chrome windows, the agent strips the " - Google Chrome" suffix from the window title to extract the page title (e.g. "Gmail - Inbox - Google Chrome" becomes "Gmail - Inbox"). This is sent as the `pageTitle` field in the sync payload. Full URL extraction is not implemented -- only the page title visible in the title bar is captured. The `trackUrls` config option exists but has no effect beyond this page title extraction.
+- **Page title extraction (v0.2.4)**: For Chrome windows, the agent strips the " - Google Chrome" suffix from the window title to extract the page title (e.g. "Gmail - Inbox - Google Chrome" becomes "Gmail - Inbox"). This is sent as the `pageTitle` field in the sync payload.
+- **URL tracking via Chrome extension (v0.3.0)**: A Manifest V3 Chrome extension (`agent/chrome-extension/`) tracks the active tab URL via `chrome.tabs.onActivated` and `chrome.tabs.onUpdated`. On every tab switch or page load, the extension POSTs `{ url: "https://..." }` to the agent's localhost HTTP bridge at `http://127.0.0.1:19876/url`. Internal Chrome pages (`chrome://`, `about:`, `devtools://`, `chrome-extension://`) are filtered to null by the extension. The agent's `url-bridge.ts` module caches the last received URL in memory with a timestamp. The window tracker calls `getLastUrl()` on each poll -- if the active app is Chrome and `trackUrls` is enabled, the cached URL is attached to the window sample; otherwise `url` is null. A 30-second staleness check ensures stale URLs are not reported if Chrome stops sending updates. The extension is invisible to the VA (no popup, no browser action, no content scripts). Degrades gracefully: if the extension is not installed or the bridge port is unavailable, `url` is simply null.
 
 ---
 
@@ -305,10 +307,23 @@ CREATE TABLE active_time_entry (
   {
     "timeEntries": [...],
     "activitySnapshots": [...],
-    "windowSamples": [...],
+    "windowSamples": [
+      {
+        "idempotencyKey": "uuid",
+        "timestamp": "ISO 8601",
+        "appName": "Google Chrome",
+        "windowTitle": "GitHub - Google Chrome",
+        "processPath": "chrome.exe",
+        "pageTitle": "GitHub",
+        "url": "https://github.com/...",
+        "durationSec": 45,
+        "timeEntryIdempotencyKey": "uuid"
+      }
+    ],
     "screenshots": [...]
   }
   ```
+- **Note**: The `url` field on windowSamples was added in v0.3.0 via Chrome extension tracking. It is `null` for non-Chrome apps or when the extension is not installed.
 - **Response 200**: `{ "synced": true, "counts": { "timeEntries": N, "activitySnapshots": N, "windowSamples": N, "screenshots": N } }`
 - **Response 401**: Unauthorized
 
@@ -374,7 +389,7 @@ CREATE TABLE active_time_entry (
 | autoStopIdleMin | number | No | 15 | Minutes before unanswered idle prompt auto-stops timer (v0.2.7) |
 | blurScreenshots | boolean | No | false | Whether to blur captures |
 | trackApps | boolean | No | true | Track foreground app names |
-| trackUrls | boolean | No | true | Track browser URLs |
+| trackUrls | boolean | No | true | Controls Chrome extension URL tracking. If true, url-bridge.ts starts listening on port 19876 and window-tracker attaches URLs from the extension to Chrome window samples. If false, url-bridge does not start and url is always null. |
 
 ### SafeStorage Caching
 
@@ -470,7 +485,7 @@ The server returns org-level settings via `GET /api/tracker/config`. These overr
 | autoStopIdleMin | config.json + server | Server wins |
 | blurScreenshots | config.json + server | Server wins |
 | trackApps | config.json + server | Server wins |
-| trackUrls | config.json + server | Server wins |
+| trackUrls | config.json + server | Server wins. Controls whether url-bridge.ts starts and whether window-tracker attaches Chrome URLs to window samples (v0.3.0). |
 
 ### Environment Variables
 
@@ -538,6 +553,15 @@ The server returns org-level settings via `GET /api/tracker/config`. These overr
 
 All native modules are listed in `asarUnpack` in `electron-builder.yml` so their `.node` binaries are extracted from the asar archive at runtime.
 
+### Zero-Dependency Modules
+
+| Module | Purpose |
+|--------|---------|
+| `url-bridge.ts` | Localhost HTTP server (127.0.0.1:19876) for Chrome extension communication. Uses Node.js built-in `http` module -- no new npm dependencies (v0.3.0). |
+| `chrome-extension/` | Manifest V3 Chrome extension (background.js + manifest.json). Plain JavaScript, no npm dependencies, no build step (bundled as extraResource). |
+| `build/pack-extension.js` | Packs chrome-extension/ into CRX2 binary using Node.js built-in `crypto` module + PowerShell Compress-Archive. No npm dependencies. |
+| `build/generate-extension-key.js` | One-time RSA key generation for CRX signing. Node.js built-in `crypto` module. No npm dependencies. |
+
 ### Key Non-Native Dependencies
 
 | Module | Purpose |
@@ -576,7 +600,7 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 
 8. **activeTitle not populated** -- WindowSample's `activeTitle` field in screenshot metadata is always empty string (`''`).
 
-9. **No full URL extraction** -- Page title extraction is implemented for Chrome (strips " - Google Chrome" suffix, v0.2.4), but full URL capture is not. The `trackUrls` config option has no effect beyond this page title extraction.
+9. **URL extraction requires Chrome extension (v0.3.0)** -- Full URL tracking is implemented via a Manifest V3 Chrome extension that POSTs the active tab URL to the agent's localhost HTTP bridge. Requirements: (1) the Chrome extension must be installed (auto-installed via CRX registry keys or manually loaded unpacked), (2) Chrome must be the active foreground app, (3) port 19876 must be free on localhost, (4) `trackUrls` must be true in config. If any requirement is not met, the `url` field on window samples is null (graceful degradation). The extension is invisible to the VA. CRX registry-based auto-install on WorkSpaces needs verification.
 
 10. **Debug logging in all engine modules** -- Console.log statements present in all engine modules (activity, window tracker, screenshot, sync, timer, IPC). Should be gated behind a `--verbose` flag before production release.
 
@@ -594,6 +618,10 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 - **Auto-stop on prolonged unanswered idle (v0.2.7)** -- If idle prompt goes unanswered for `autoStopIdleMin` (default 15 min), timer auto-stops and idle time is discarded.
 - **Close warning dialog (v0.2.8)** -- When window X is clicked while timer is running, native `dialog.showMessageBox` warns and offers "Keep Working" or "Stop & Close". If timer is not running, window hides to tray as before.
 - **Note input wired end-to-end (v0.2.8)** -- `timer:setNote` IPC channel, `setTimerNote()` in timer.ts, note included in sync payload (previously always null).
+- **Chrome extension URL tracking (v0.3.0)** -- Manifest V3 extension tracks active tab URL, POSTs to localhost HTTP bridge (127.0.0.1:19876). Window tracker attaches URL to Chrome window samples. NSIS installer bundles extension and writes Chrome registry keys. Gated behind `trackUrls` config flag.
+- **CORS headers on URL bridge (v0.3.1)** -- Access-Control-Allow-Origin/Methods/Headers on all responses + OPTIONS preflight handler. Fixes extension fetch() being blocked.
+- **App display name fix (v0.3.1)** -- package.json description shortened to "Valerie Agent" (was leaking into Task Manager and dashboard as display name).
+- **CRX extension packaging (v0.3.1)** -- Persistent RSA signing key (extension.pem). Chrome extension packed as CRX2 binary via build/pack-extension.js. Registry install now points to .crx file. Extension ID changed to `lpdlfbkigloncemklhgcclimjfbglfkk`. Old registry keys cleaned up on install/uninstall.
 
 ---
 
@@ -921,3 +949,113 @@ The `storageUrl` field on the Screenshot model stores the public URL format. The
 1. Soft-delete in Postgres (sets `deletedByUser: true`, `deletedAt: now()`)
 2. Hard-delete from Supabase Storage via `supabase.storage.from('screenshots').remove([storagePath])`
 3. Only the screenshot owner (VA) can delete, within 24 hours of capture
+
+---
+
+## Appendix D: Chrome Extension Architecture (v0.3.0 / v0.3.1)
+
+### Purpose
+
+Captures the full URL of the active Chrome tab and delivers it to the Electron agent for inclusion in WindowSample sync payloads. This supplements page title extraction (v0.2.4) with the actual URL.
+
+### File Locations
+
+| Location | Path | Description |
+|----------|------|-------------|
+| Extension source | `agent/chrome-extension/manifest.json` + `background.js` | Manifest V3 extension. Committed to repo. |
+| RSA signing key | `agent/build/extension.pem` | 2048-bit RSA private key for CRX signing. Committed for reproducible builds. |
+| CRX build script | `agent/build/pack-extension.js` | Packs chrome-extension/ into CRX2 binary. Uses Node.js crypto + PowerShell zip. No npm deps. |
+| Key generator | `agent/build/generate-extension-key.js` | One-time script (already run). Generates extension.pem + computes extension ID. |
+| CRX output | `agent/build/valerie-url-bridge.crx` | Build artifact, not committed. Generated by pack-extension.js before electron-builder runs. |
+| Installed (unpacked) | `C:\ProgramData\ValerieAgent\chrome-extension\` | Copied by NSIS installer. For Load Unpacked debugging. |
+| Installed (CRX) | `C:\ProgramData\ValerieAgent\valerie-url-bridge.crx` | Copied by NSIS installer. Used by Chrome registry auto-install. |
+| Agent bridge module | `agent/src/main/url-bridge.ts` | Node.js HTTP server on 127.0.0.1:19876. Receives URLs from extension. |
+
+### Extension Details
+
+- **Manifest version**: 3 (MV3)
+- **Permissions**: `tabs`, `activeTab`
+- **Background**: Service worker (`background.js`)
+- **Extension ID**: `lpdlfbkigloncemklhgcclimjfbglfkk` (derived from committed PEM key)
+- **Previous ID**: `pdnlbaclbmfbipieaeknjkopdcafeepf` (v0.3.0, before CRX packaging)
+- **manifest.json `key` field**: Contains the base64-encoded DER public key from extension.pem. This ensures the extension ID is stable across installs.
+- **No popup, no browser action, no content scripts**: The extension is invisible to the VA.
+
+### Communication Flow
+
+```
+Chrome Extension (background.js)
+  |
+  |  POST http://127.0.0.1:19876/url  { "url": "https://example.com/page" }
+  |  (on every tab switch via chrome.tabs.onActivated)
+  |  (on every page load via chrome.tabs.onUpdated, status === 'complete')
+  |
+  v
+url-bridge.ts (Node.js http server)
+  |
+  |  Caches: cachedUrl = "https://example.com/page", cachedTimestamp = Date.now()
+  |
+  v
+window-tracker.ts (every 3s poll)
+  |
+  |  if (activeApp is Chrome && trackUrls enabled):
+  |    url = getLastUrl()   // returns cachedUrl if < 30s old, else null
+  |  else:
+  |    url = null
+  |
+  v
+WindowSample sync payload: { ..., url: "https://example.com/page" }
+```
+
+### Internal Page Filtering
+
+The extension filters these URL prefixes to null before POSTing:
+- `chrome://`
+- `chrome-extension://`
+- `about:`
+- `devtools://`
+
+### Registry-Based Auto-Install
+
+The NSIS installer writes Chrome external extension registry keys for automatic installation:
+
+```
+HKLM\SOFTWARE\WOW6432Node\Google\Chrome\Extensions\lpdlfbkigloncemklhgcclimjfbglfkk
+  path = "C:\ProgramData\ValerieAgent\valerie-url-bridge.crx"
+  version = "1.0.0"
+
+HKLM\SOFTWARE\Google\Chrome\Extensions\lpdlfbkigloncemklhgcclimjfbglfkk
+  path = "C:\ProgramData\ValerieAgent\valerie-url-bridge.crx"
+  version = "1.0.0"
+```
+
+Both WOW6432Node (64-bit Chrome) and direct path (32-bit fallback) are written. On uninstall, both new and old (pdnlbaclbmfbipieaeknjkopdcafeepf) registry keys are cleaned up.
+
+### CORS (v0.3.1)
+
+The Chrome extension's `fetch()` call to `http://127.0.0.1:19876/url` is subject to CORS policy. The URL bridge sets these headers on all responses:
+- `Access-Control-Allow-Origin: *`
+- `Access-Control-Allow-Methods: GET, POST, OPTIONS`
+- `Access-Control-Allow-Headers: Content-Type`
+
+An explicit `OPTIONS` preflight handler returns 204. Without these headers, Chrome blocks the extension's fetch with a CORS error.
+
+### Debugging
+
+1. **Check if extension is installed**: Open `chrome://extensions/` on the WorkSpace. Look for "Valerie Agent URL Bridge".
+2. **Load Unpacked (manual install)**: Enable Developer mode in `chrome://extensions/`, click "Load unpacked", browse to `C:\ProgramData\ValerieAgent\chrome-extension\`.
+3. **Check bridge is running**: From PowerShell: `Invoke-RestMethod -Uri http://127.0.0.1:19876/url`. Should return `{ url: "...", timestamp: ... }` if Chrome has reported a URL recently.
+4. **Check agent logs**: Look for `[URLBridge] Listening on 127.0.0.1:19876` in agent stdout. If port is in use: `[URLBridge] Port 19876 in use, URL tracking disabled`.
+
+### WorkSpace Persistence
+
+- **Extension files**: Stored in `C:\ProgramData\ValerieAgent\` (C: drive, system volume). Survives WorkSpace image capture.
+- **CRX file**: Same location. Survives image capture.
+- **Registry keys**: Written to HKLM (machine-wide). Survives image capture.
+- **Golden image deployment**: Install the agent on a fresh WorkSpace, verify Chrome loads the extension, then capture the image. All new WorkSpaces from this bundle will have the extension auto-installed.
+
+### Config Gating
+
+The `trackUrls` config flag (default: `true`) controls whether the URL bridge starts:
+- **If `trackUrls` is true**: `startUrlBridge()` creates the HTTP server on port 19876. `getLastUrl()` returns the cached URL (if < 30s old and Chrome is active).
+- **If `trackUrls` is false**: `startUrlBridge()` is a no-op (logs "[URLBridge] trackUrls disabled -- skipping"). `getLastUrl()` always returns null. The Chrome extension still runs and POSTs, but nobody is listening (connection refused, silently caught by extension).

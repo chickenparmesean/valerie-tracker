@@ -320,7 +320,7 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 15 | Fix any native module / compatibility issues found during testing | DONE (2026-02-27) |
 | 16 | Verify screenshot capture + upload end-to-end | DONE (2026-02-27) |
 | 17 | Verify sync engine end-to-end | DONE (2026-02-27) |
-| 18 | Package final working installer ready for golden image | DONE (2026-02-27, updated 2026-03-03) -- v0.2.8 is the current stable installer. Rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9. v0.2.0 added `perMachine: true` for C: drive install on golden images. v0.2.6 fixed screenshot metadata, removed capture notification. v0.2.7 fixed stale timer resume + auto-stop on prolonged idle. v0.2.8 added close warning dialog + note input wiring. |
+| 18 | Package final working installer ready for golden image | DONE (2026-02-27, updated 2026-03-03) -- v0.3.1 is the current stable installer. Rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9. v0.2.0 added `perMachine: true` for C: drive install on golden images. v0.2.6 fixed screenshot metadata, removed capture notification. v0.2.7 fixed stale timer resume + auto-stop on prolonged idle. v0.2.8 added close warning dialog + note input wiring. v0.3.0 added Chrome extension URL tracking. v0.3.1 added CORS fix, display name fix, CRX packaging. |
 
 ### Agent Auth Swap -- COMPLETE (tasks 4, 9-11)
 
@@ -407,7 +407,7 @@ All 18 integration guide tasks are DONE. The Electron desktop agent has been tes
 
 ---
 
-## Current Integration Status (v0.2.8)
+## Current Integration Status (v0.3.1)
 
 The agent now syncs to va-platform at staging.hirevalerie.com (previously used standalone API at valerie-tracker-web.vercel.app).
 
@@ -416,6 +416,8 @@ The agent now syncs to va-platform at staging.hirevalerie.com (previously used s
 - **v0.2.6:** Screenshot metadata now correctly includes `storageUrl` and `storagePath` in the sync payload. Previously these fields were not set before the outbox insert, resulting in null values being synced even when the presigned URL upload succeeded. Desktop notification on screenshot capture has been removed (screenshots are now captured silently).
 - **v0.2.7:** Stale timer detection on resume -- if the gap between now and the last known activity exceeds the idle threshold, the timer auto-stops with `durationSec` reflecting actual work time (not including reboot/downtime gap). Also added auto-stop on prolonged unanswered idle (configurable via `autoStopIdleMin`, default 15 minutes) to prevent phantom sessions.
 - **v0.2.8:** Two additions: (1) **Close warning** -- when the VA clicks the window X button while the timer is running, a native dialog appears asking whether to keep working or stop and close. If the timer is not running, window X hides to tray as before. Tray "Quit" still quits immediately without warning. (2) **Note input wired** -- the `note` field on time entries is now populated end-to-end. While the timer is running, a text input is visible on MainScreen. The VA types a note, clicks submit, and the note is attached to the current time entry. On the next sync cycle, the `note` field in the time entry payload contains the actual note text (previously always `null`).
+- **v0.3.0:** Chrome extension URL tracking. A Manifest V3 Chrome extension (`agent/chrome-extension/`) captures the active tab URL via `chrome.tabs` API and POSTs it to the agent's localhost HTTP bridge on 127.0.0.1:19876. The window tracker attaches the URL to Chrome window samples as the `url` field in the sync payload. Internal Chrome pages (chrome://, about:, devtools://) are filtered to null. Gated behind `trackUrls` config flag. NSIS installer bundles extension and writes Chrome external extension registry keys. Zero new npm dependencies.
+- **v0.3.1:** Three fixes: (1) **CORS fix** -- Access-Control-Allow-Origin headers + OPTIONS preflight on url-bridge.ts, fixing Chrome extension fetch() being blocked. (2) **App display name fix** -- package.json description shortened to "Valerie Agent" (was leaking into Task Manager). (3) **CRX packaging** -- Chrome extension now packed as CRX2 binary with persistent RSA signing key (extension.pem). Registry-based install points to .crx file instead of unpacked folder. Extension ID changed from `pdnlbaclbmfbipieaeknjkopdcafeepf` to `lpdlfbkigloncemklhgcclimjfbglfkk`. Old registry keys cleaned up on install/uninstall.
 
 ### Working sync routes on va-platform
 
@@ -432,8 +434,9 @@ The agent now syncs to va-platform at staging.hirevalerie.com (previously used s
 | /api/tracker/screenshots/presign | POST | Returns 400 -- field mismatch in Zod schema. Agent-side metadata fix applied in v0.2.6 (storageUrl/storagePath now populated). Va-platform Zod schema still needs updating. |
 | /api/tracker/time-entries | GET | Returns 404 -- endpoint not built yet |
 | pageTitle field | -- | Not yet accepted in sync Zod schema or stored in WindowSample table |
+| url field | -- | Not yet accepted in sync Zod schema or stored in WindowSample table. Agent sends `url` (string | null) on window samples as of v0.3.0. Same pattern as pageTitle gap. |
 
-### Agent sync payload shape (v0.2.8)
+### Agent sync payload shape (v0.3.1)
 
 ```json
 {
@@ -461,6 +464,7 @@ The agent now syncs to va-platform at staging.hirevalerie.com (previously used s
     "appName": "string",
     "windowTitle": "string | null",
     "pageTitle": "string | null",
+    "url": "string | null (full URL from Chrome extension, v0.3.0 — null for non-Chrome apps or extension not installed)",
     "processPath": "string | null",
     "durationSec": "number",
     "timeEntryIdempotencyKey": "uuid"

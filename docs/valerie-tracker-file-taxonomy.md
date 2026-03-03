@@ -10,18 +10,19 @@
 
 ---
 
-## agent/src/main/ -- Electron Main Process (15 modules)
+## agent/src/main/ -- Electron Main Process (16 modules)
 
 | File | Tags | Description |
 |------|------|-------------|
-| `index.ts` | [AUTH] [INTEGRATION] | App entry point. Dual startup (--dev vs normal mode), GPU flags for WorkSpaces, creates window, starts all engines. Single instance lock via app.requestSingleInstanceLock() -- second instance focuses existing window instead of launching duplicate (v0.2.3). Graceful shutdown: before-quit handler calls cleanup on all engine modules -- timer, activity, window tracker, screenshot, idle detector, sync, auto-updater, tray (v0.2.3). Close warning dialog: BrowserWindow close handler uses dialog.showMessageBox when timer is running -- "Stop tracking? Closing will stop your timer." with "Keep Working" and "Stop & Close" buttons. If timer is not running, window hides to tray as before (v0.2.8). |
+| `index.ts` | [AUTH] [INTEGRATION] | App entry point. Dual startup (--dev vs normal mode), GPU flags for WorkSpaces, creates window, starts all engines. Single instance lock via app.requestSingleInstanceLock() -- second instance focuses existing window instead of launching duplicate (v0.2.3). Graceful shutdown: before-quit handler calls cleanup on all engine modules -- timer, activity, URL bridge, window tracker, screenshot, idle detector, sync, auto-updater, tray (v0.2.3). startUrlBridge() called in engine startup, stopUrlBridge() in graceful shutdown (v0.3.0). Close warning dialog: BrowserWindow close handler uses dialog.showMessageBox when timer is running -- "Stop tracking? Closing will stop your timer." with "Keep Working" and "Stop & Close" buttons. If timer is not running, window hides to tray as before (v0.2.8). |
 | `config.ts` | [AUTH] [INTEGRATION] | Global config constants (intervals, paths, URLs). `isDevMode` flag. Dynamic `apiBaseUrl` getter/setter. DB path migration from old "Valerie Tracker" name. |
 | `tracker-config.ts` | [AUTH] [INTEGRATION] | Reads config.json from ProgramData, safeStorage caching, pings server to validate API key, fetches + merges server config, offline fallback. Core auth module for production mode. TrackerSettings includes autoStopIdleMin (default 15) for prolonged idle auto-stop (v0.2.7). |
 | `auth.ts` | [AUTH] [INTEGRATION] | `getAuthHeaders()` -- returns Bearer token for API calls. Dev mode: Supabase JWT. Normal mode: API key from tracker-config. Also handles Supabase signIn/signOut/restoreSession (dev-only). |
 | `database.ts` | [DATA] [SYNC] | SQLite via better-sqlite3. Creates 3 tables (sync_outbox, screenshot_queue, active_time_entry). CRUD for outbox items, screenshots, and timer persistence. |
 | `timer.ts` | [DATA] [TASK] | Timer state machine (start/stop/resume). Generates idempotency keys. Tracks elapsed/active/idle seconds. Queues time entries for sync. Persists to SQLite for crash recovery. Writes last_tick_at to active_time_entry every 60s. On resumeTimer(), detects stale timers by checking gap between now and last_tick_at -- if gap exceeds idle threshold, auto-stops with durationSec reflecting actual work time (v0.2.7). Manages currentNote state via setTimerNote() export; note is included in queueForSync payload and reset on stop (v0.2.8). |
 | `activity.ts` | [DATA] | Activity detection via powerMonitor.getSystemIdleTime(). 1s polling, 60s snapshot aggregation. Feeds activityPct to timer and sync outbox. Data collection gated behind timer running state -- skips polls with "[Activity] Skipping -- timer not running" log when timer is not running (v0.2.2). |
-| `window-tracker.ts` | [DATA] | Foreground app tracking via @miniben90/x-win. 3s polling, heartbeat pattern (extends duration for same app). 60s flush to sync outbox. Chrome page title extraction: strips " - Google Chrome" suffix from window titles to derive pageTitle field sent in sync payload alongside appName and windowTitle (v0.2.4). Timer-gated -- skips polls when timer not running (v0.2.2). |
+| `window-tracker.ts` | [DATA] | Foreground app tracking via @miniben90/x-win. 3s polling, heartbeat pattern (extends duration for same app). 60s flush to sync outbox. Chrome page title extraction: strips " - Google Chrome" suffix from window titles to derive pageTitle field sent in sync payload alongside appName and windowTitle (v0.2.4). URL tracking: imports getLastUrl() from url-bridge.ts, attaches cached URL to Chrome window samples when trackUrls is enabled (v0.3.0). Timer-gated -- skips polls when timer not running (v0.2.2). |
+| `url-bridge.ts` | [DATA] | Localhost HTTP server on 127.0.0.1:19876. Receives URLs from Chrome extension via POST /url, caches in memory with timestamp. Exports getLastUrl() (returns cached URL if < 30s old, else null) and startUrlBridge()/stopUrlBridge() lifecycle functions. CORS headers + OPTIONS preflight for extension fetch (v0.3.1). EADDRINUSE graceful degradation. Gated behind trackUrls config flag. Uses Node.js built-in http module -- zero new npm dependencies (v0.3.0). |
 | `screenshot.ts` | [DATA] | Screenshot capture via screenshot-desktop + sharp WebP compression. Randomized within 10-min windows. Saves locally, queues for upload. Captures silently (notification removed in v0.2.6). Capture only occurs while timer is running -- skips with log when timer stopped (v0.2.2). |
 | `idle-detector.ts` | [DATA] [UI] | Idle detection via powerMonitor. 30s polling + lock-screen event. Shows idle prompt dialog to renderer when threshold exceeded. If idle prompt goes unanswered for autoStopIdleMin (default 15 min, configurable), auto-stops timer and discards idle time (v0.2.7). |
 | `sync.ts` | [SYNC] [INTEGRATION] | Sync engine. Runs every 60s. Batches unsynced items from SQLite, POSTs to /api/tracker/sync. Uploads screenshots via presigned URLs. Marks items as synced. Screenshot metadata now includes storageUrl/storagePath set before outbox insert (v0.2.6). |
@@ -29,6 +30,22 @@
 | `auto-launch.ts` | | Windows Registry Run key for auto-start on login. Writes to HKCU\...\Run. |
 | `auto-updater.ts` | | electron-updater integration. Checks GitHub Releases on startup + every 4h. Downloads silently, installs on quit. Non-fatal error handling. |
 | `ipc.ts` | [UI] [INTEGRATION] | IPC handler registration. Maps renderer API calls to main process functions: auth, timer, projects, config, idle, tasks, app version, today total, timer:setNote (v0.2.8). |
+
+## agent/chrome-extension/ -- Chrome Extension (v0.3.0)
+
+| File | Tags | Description |
+|------|------|-------------|
+| `manifest.json` | [DATA] | Chrome extension manifest. Manifest V3, tabs + activeTab permissions, background service worker. Fixed `key` field with base64 DER public key from extension.pem for stable extension ID (lpdlfbkigloncemklhgcclimjfbglfkk). minimum_chrome_version: 110. |
+| `background.js` | [DATA] | Service worker. Tracks active tab URL via chrome.tabs.onActivated and chrome.tabs.onUpdated. POSTs `{ url }` to http://127.0.0.1:19876/url on every tab switch and page load completion. Filters internal Chrome pages (chrome://, about:, devtools://, chrome-extension://) to null. Silent failure if agent not running. |
+
+## agent/build/ -- Build Scripts
+
+| File | Tags | Description |
+|------|------|-------------|
+| `installer.nsh` | [BUILD] | NSIS custom install/uninstall macros. On install: copies unpacked extension to C:\ProgramData\ValerieAgent\chrome-extension\, copies .crx to C:\ProgramData\ValerieAgent\, cleans up old extension registry keys (pdnlbaclbmfbipieaeknjkopdcafeepf), writes Chrome external extension registry keys for lpdlfbkigloncemklhgcclimjfbglfkk in HKLM\SOFTWARE\Google\Chrome\Extensions\ and WOW6432Node path. On uninstall: removes both old and new registry keys, deletes extension files. |
+| `extension.pem` | [BUILD] | RSA 2048-bit private key for CRX signing. Committed to repo for reproducible builds. Generated by generate-extension-key.js. The public key derived from this PEM determines the extension ID. |
+| `generate-extension-key.js` | [BUILD] | One-time script to generate extension.pem + compute extension ID + output base64 public key for manifest.json key field. Already run -- extension.pem exists. Uses Node.js crypto, no npm deps. |
+| `pack-extension.js` | [BUILD] | Packs chrome-extension/ folder into CRX2 binary (valerie-url-bridge.crx). Uses Node.js crypto for RSA-SHA1 signing + PowerShell Compress-Archive for zipping. No npm dependencies. Outputs CRX path, extension ID, public key base64, and file size. |
 
 ## agent/src/preload/ -- Preload Bridge
 
@@ -93,7 +110,7 @@
 | `index.ts` | [INTEGRATION] | Re-exports all types and enums. |
 | `enums.ts` | [INTEGRATION] | UserRole, ProjectStatus, TaskStatus, TimeEntryStatus, MembershipStatus enums. |
 | `types.ts` | [INTEGRATION] | ApiError, ProjectWithTasks, TaskSummary, LiveDashboardEntry, PresignResponse interfaces. |
-| `sync-payload.ts` | [SYNC] [INTEGRATION] | SyncPayload, SyncTimeEntry, SyncActivitySnapshot, SyncWindowSample, SyncScreenshotMeta, SyncResponse interfaces. Defines the exact shape of data between agent and API. SyncWindowSample includes pageTitle field (string | null) for Chrome page titles (v0.2.5). |
+| `sync-payload.ts` | [SYNC] [INTEGRATION] | SyncPayload, SyncTimeEntry, SyncActivitySnapshot, SyncWindowSample, SyncScreenshotMeta, SyncResponse interfaces. Defines the exact shape of data between agent and API. SyncWindowSample includes pageTitle field (string | null) for Chrome page titles (v0.2.5) and url field (string | null) for Chrome tab URLs from extension (v0.3.0). |
 
 ## prisma/ -- Database Schema
 
@@ -116,9 +133,9 @@
 | `DESIGN-BRIEF.md` | | Styling tokens reference (used by va-platform, not this project). |
 | `SCHEMA.prisma` | | Reference copy of schema. |
 | `package.json` | | Root workspace config (npm workspaces: web, agent, shared, prisma). |
-| `agent/electron-builder.yml` | [INTEGRATION] | NSIS installer config. perMachine: true, asarUnpack for native modules, GitHub Releases publish. |
+| `agent/electron-builder.yml` | [INTEGRATION] | NSIS installer config. perMachine: true, asarUnpack for native modules, GitHub Releases publish. extraResources includes chrome-extension/ (unpacked source) and valerie-url-bridge.crx (packed extension) for NSIS installer bundling. nsis.include points to build/installer.nsh for extension registry setup (v0.3.0). |
 | `agent/resources/icon.ico` | [UI] | Custom woman silhouette logo (256x256). Embedded in .exe via rcedit. Also bundled as extraResource for runtime BrowserWindow icon. Updated v0.1.7. |
-| `agent/package.json` | | Agent workspace: scripts (dev, build, publish), dependencies, version 0.2.8. |
+| `agent/package.json` | | Agent workspace: scripts (dev, build, publish), dependencies, version 0.3.1. |
 
 ---
 
@@ -127,7 +144,10 @@
 ### Data Collection
 Files that determine WHAT is captured and HOW:
 - `agent/src/main/activity.ts` -- Activity polling rate, snapshot interval
-- `agent/src/main/window-tracker.ts` -- Window polling rate, heartbeat logic
+- `agent/src/main/window-tracker.ts` -- Window polling rate, heartbeat logic, URL attachment from url-bridge
+- `agent/src/main/url-bridge.ts` -- Localhost HTTP bridge for Chrome extension URL tracking (v0.3.0)
+- `agent/chrome-extension/background.js` -- Chrome extension that captures active tab URL
+- `agent/chrome-extension/manifest.json` -- Extension permissions and configuration
 - `agent/src/main/screenshot.ts` -- Screenshot timing, compression, format
 - `agent/src/main/idle-detector.ts` -- Idle threshold, prompt behavior
 - `agent/src/main/timer.ts` -- Time entry fields, activity accumulation
