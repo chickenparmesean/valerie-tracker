@@ -21,6 +21,8 @@ extraResources:
     to: icon.ico
   - from: chrome-extension
     to: chrome-extension
+  - from: build/valerie-url-bridge.crx
+    to: valerie-url-bridge.crx
 npmRebuild: true
 electronVersion: "34.5.8"
 win:

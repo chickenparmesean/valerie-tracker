@@ -13,3 +13,5 @@ out/
 *.ico
 !agent/resources/icon.ico
 .turbo/
+agent/build/*.crx
+agent/build/*.zip
