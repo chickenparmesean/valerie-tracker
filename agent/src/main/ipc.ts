@@ -91,17 +91,17 @@ export function registerIpcHandlers(): void {
     return app.getVersion();
   });
 
-  // Today time total — returns stopped entries total (renderer adds running elapsed for real-time display)
+  // Today time total — returns stopped entries + running timer elapsed
   ipcMain.handle('time:getTodayTotal', async () => {
     const timerState = getTimerState();
-    const localRunning = timerState.isRunning ? timerState.elapsedSec : 0;
+    const running = timerState.isRunning ? timerState.elapsedSec : 0;
 
     const headers = getAuthHeaders();
     if (!headers) {
-      // Offline / not authenticated — fall back to local SQLite
       const localStopped = getTodayStoppedSecondsFromOutbox();
-      console.log('[IPC] time:getTodayTotal — offline fallback, local stopped:', localStopped, 's, local running:', localRunning, 's');
-      return localStopped;
+      const total = localStopped + running;
+      console.log('[IPC] time:getTodayTotal — source: local, server: 0s, running:', running, 's, total:', total, 's');
+      return total;
     }
 
     try {
@@ -111,33 +111,34 @@ export function registerIpcHandlers(): void {
       const dd = String(today.getDate()).padStart(2, '0');
       const dateStr = `${yyyy}-${mm}-${dd}`;
 
-      const res = await fetch(`${config.apiBaseUrl}/api/time-entries?date=${dateStr}`, {
+      const res = await fetch(`${config.apiBaseUrl}/api/tracker/time-entries?date=${dateStr}`, {
         headers,
       });
 
       if (!res.ok) {
-        // API error — fall back to local SQLite
         const localStopped = getTodayStoppedSecondsFromOutbox();
-        console.log('[IPC] time:getTodayTotal — API', res.status, ', fallback local stopped:', localStopped, 's, local running:', localRunning, 's');
-        return localStopped;
+        const total = localStopped + running;
+        console.log('[IPC] time:getTodayTotal — source: local (API', res.status, '), server: 0s, running:', running, 's, total:', total, 's');
+        return total;
       }
 
-      const entries: Array<{ durationSec?: number; stoppedAt?: string | null }> = await res.json();
+      const entries: Array<{ durationSec?: number | null }> = await res.json();
 
-      let serverStopped = 0;
+      let serverTotal = 0;
       for (const entry of entries) {
-        if (entry.stoppedAt && entry.durationSec) {
-          serverStopped += entry.durationSec;
+        if (entry.durationSec != null) {
+          serverTotal += entry.durationSec;
         }
       }
 
-      console.log('[IPC] time:getTodayTotal — server:', serverStopped, 's, local running:', localRunning, 's, total:', serverStopped + localRunning, 's');
-      return serverStopped;
+      const total = serverTotal + running;
+      console.log('[IPC] time:getTodayTotal — source: api, server:', serverTotal, 's, running:', running, 's, total:', total, 's');
+      return total;
     } catch (err: any) {
-      // Network error — fall back to local SQLite
       const localStopped = getTodayStoppedSecondsFromOutbox();
-      console.log('[IPC] time:getTodayTotal — network error:', err.message, ', fallback local stopped:', localStopped, 's, local running:', localRunning, 's');
-      return localStopped;
+      const total = localStopped + running;
+      console.log('[IPC] time:getTodayTotal — source: local (', err.message, '), server: 0s, running:', running, 's, total:', total, 's');
+      return total;
     }
   });
 
