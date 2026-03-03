@@ -9,6 +9,12 @@ const PORT = 19876;
 const HOST = '127.0.0.1';
 const STALE_MS = 30_000;
 
+function setCorsHeaders(res: http.ServerResponse): void {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
 export function getLastUrl(): string | null {
   const settings = getTrackerSettings();
   if (!settings?.trackUrls) return null;
@@ -24,6 +30,15 @@ export function startUrlBridge(): void {
   }
 
   server = http.createServer((req, res) => {
+    setCorsHeaders(res);
+
+    // Handle CORS preflight
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
     if (req.url === '/url' && req.method === 'POST') {
       let body = '';
       req.on('data', (chunk) => { body += chunk; });

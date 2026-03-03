@@ -3,7 +3,7 @@
   "name": "Valerie Agent URL Bridge",
   "description": "Provides active tab URL to Valerie Agent",
   "version": "1.0.0",
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr7cMQJPM0UCTg0aGQXJ+GhFXcVMUlHoDng07bFXGEjLihRsGEBxVANKXqWEFDBbKOFMQVbILTPBbB8RQHsBQ3c1yCVpGJLMhBh5ZQbR1sDgyJmFt4bYrxOwBT5VKH7Q0DsB3P1AYqL8GCK7Q4jE7HdgfRSYzz4Hx0Rd3Ykq0OFjdJ7IlVkMy7W7qMbwX8HhLp5BHzF4qlHtQN0ImKa0Xc4fgPGbCNx3BflObHxnFkm5O8v0t0YNVY7JA7T8SUQYBIr3wpSe7u+kPJECn3HJPqaVcLzx/Z7OVjHZ/6Lp4rPBROf0wQ3sMC7CJPX7OwOQaPZ6EkwQwj/v0R7P0PjHXGOwIDAQAB",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtr+31TZVQDWRM6ggr1t+GvbzGkBtNuJ/eNvZN8TEFYMRFNlgQI8yRTHdsqhXWUFBeDtpk/FqCs1c4xIoHKx7fx2uJY5v7tXvRekt6KEpipp6gwNQfgpO9dzRD/XnKrMcrUWo5WjqZo1kBJQpZPPFIkY71xbVjoCmTpfbNIe38WK1vcnJdtu2diL/0WY5vA5CbhkABoORSVcWY1ywYj/miEw/ABnSbwZz2O1Xxyib9uy5M6Lg04H42IMOKTbmvg3DkTgebuAakev2VoMcAtS9GJcmp4tWy2pYPrAdhzqG1aNXvn0An4lqqNgj3CVswi4yNITLurQw0rBA8hVTrou3/wIDAQAB",
   "permissions": ["tabs", "activeTab"],
   "background": {
     "service_worker": "background.js"
