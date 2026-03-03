@@ -364,11 +364,23 @@ CREATE TABLE active_time_entry (
 **Primary**: `C:\ProgramData\ValerieAgent\config.json`
 **Fallback**: `C:\ProgramData\ValerieTracker\config.json`
 
+**Only `apiKey` and `apiBaseUrl` are required.** The server resolves `orgId` and `userId` from the API key via `/api/tracker/ping` and `/api/tracker/config`. All other settings are optional -- the server provides them automatically.
+
+**Production provisioning:** In production, va-platform provisions config.json automatically via AWS SSM RunCommand. When a VA is hired and their WorkSpace becomes AVAILABLE, the `sync-activity` cron calls `deployTrackerConfig()` which uses SSM to write config.json (containing only `apiKey` and `apiBaseUrl`) to this path. Zero manual setup required.
+
+**Minimum required config:**
+```json
+{
+  "apiBaseUrl": "https://staging.hirevalerie.com",
+  "apiKey": "vt_a1b2c3d4e5f6..."
+}
+```
+
+**Full example (all optional fields shown):**
 ```json
 {
   "apiBaseUrl": "https://staging.hirevalerie.com",
   "apiKey": "vt_a1b2c3d4e5f6...",
-  "vaId": "test-va-001",
   "screenshotFreq": 1,
   "idleTimeoutMin": 5,
   "autoStopIdleMin": 15,
@@ -380,15 +392,14 @@ CREATE TABLE active_time_entry (
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| apiBaseUrl | string | Yes | -- | URL of the API server. The standalone test API at valerie-tracker-web.vercel.app is retired. The agent now syncs to va-platform at staging.hirevalerie.com. |
-| apiKey | string | Yes | -- | Must start with `vt_`, maps to `trackerApiKey` on User model |
-| vaId | string | No | `''` | Informational VA identifier |
-| screenshotFreq | number | No | 1 | Screenshots per 10-min interval |
-| idleTimeoutMin | number | No | 5 | Minutes before idle dialog |
-| autoStopIdleMin | number | No | 15 | Minutes before unanswered idle prompt auto-stops timer (v0.2.7) |
-| blurScreenshots | boolean | No | false | Whether to blur captures |
-| trackApps | boolean | No | true | Track foreground app names |
-| trackUrls | boolean | No | true | Controls Chrome extension URL tracking. If true, url-bridge.ts starts listening on port 19876 and window-tracker attaches URLs from the extension to Chrome window samples. If false, url-bridge does not start and url is always null. |
+| apiBaseUrl | string | **Yes** | -- | URL of the API server. The agent syncs to va-platform at staging.hirevalerie.com. |
+| apiKey | string | **Yes** | -- | Must start with `vt_`, maps to `trackerApiKey` on User model. The server resolves `orgId` and `userId` from this key -- they do NOT need to be in config.json. |
+| screenshotFreq | number | No | server-provided or 1 | Screenshots per 10-min interval |
+| idleTimeoutMin | number | No | server-provided or 5 | Minutes before idle dialog |
+| autoStopIdleMin | number | No | server-provided or 15 | Minutes before unanswered idle prompt auto-stops timer (v0.2.7) |
+| blurScreenshots | boolean | No | server-provided or false | Whether to blur captures |
+| trackApps | boolean | No | server-provided or true | Track foreground app names |
+| trackUrls | boolean | No | server-provided or true | Controls Chrome extension URL tracking. If true, url-bridge.ts starts listening on port 19876 and window-tracker attaches URLs from the extension to Chrome window samples. If false, url-bridge does not start and url is always null. |
 
 ### SafeStorage Caching
 
@@ -596,6 +607,25 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 6. **No automated tests** -- All testing was manual on AWS WorkSpace.
 
 7. **No disk space guard** -- No logic to reduce screenshot quality or frequency when local storage is low.
+
+8. **Full URLs captured with query params** -- Chrome extension captures full URLs including query parameters (e.g., LinkedIn authwall URLs with `?trk=...&session_redirect=...` tracking tokens). Future enhancement: URL truncation or query parameter stripping for privacy and storage efficiency.
+
+9. **va-platform drops `url` field** -- Agent sends `url` in WindowSample sync payload as of v0.3.0, but va-platform's WindowSample model is missing the `url` column, so the sync Zod schema silently strips it. This is a va-platform task, not an agent limitation.
+
+---
+
+## 11. v0.3.5 End-to-End Test Results (2026-03-03)
+
+Full chain verified on AWS WorkSpace:
+
+- Extension force-installs via Chrome enterprise policy (ExtensionInstallForcelist), cannot be disabled by user
+- URLs captured from Chrome active tab, sent through localhost HTTP bridge (127.0.0.1:19876), attached to WindowSample sync payloads
+- Sync to staging.hirevalerie.com succeeds for all record types (time entries, activity snapshots, window samples, screenshots)
+- Stale URL expiry works -- getLastUrl() returns null after 30s of no extension updates
+- Screenshots capture, compress to WebP, queue for upload
+- Activity polling, idle detection, timer start/stop all correct
+- config.json only requires `apiKey` and `apiBaseUrl` -- server resolves `orgId` and `userId` from the API key
+- Production provisioning via AWS SSM RunCommand confirmed working (va-platform `deployTrackerConfig()`)
 
 8. **activeTitle not populated** -- WindowSample's `activeTitle` field in screenshot metadata is always empty string (`''`).
 

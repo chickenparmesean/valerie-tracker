@@ -91,12 +91,21 @@ The agent reads its configuration from a JSON file on startup:
 
 **Location:** `C:\ProgramData\ValerieAgent\config.json` (falls back to `C:\ProgramData\ValerieTracker\config.json` for backwards compatibility)
 
-**Full example:**
+**Only `apiKey` and `apiBaseUrl` are required.** The server resolves `orgId` and `userId` from the API key via `/api/tracker/ping` and `/api/tracker/config`. All other settings are optional -- the server provides them automatically.
+
+**Minimum required config:**
 ```json
 {
-  "apiBaseUrl": "https://valerie-tracker-web.vercel.app",
+  "apiBaseUrl": "https://staging.hirevalerie.com",
+  "apiKey": "vt_your_api_key_here"
+}
+```
+
+**Full example (all optional fields shown):**
+```json
+{
+  "apiBaseUrl": "https://staging.hirevalerie.com",
   "apiKey": "vt_test123",
-  "vaId": "test-va-001",
   "screenshotFreq": 1,
   "idleTimeoutMin": 5,
   "autoStopIdleMin": 15,
@@ -106,17 +115,16 @@ The agent reads its configuration from a JSON file on startup:
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| apiBaseUrl | string | URL of the Vercel API deployment |
-| apiKey | string | API key (must start with `vt_`), maps to `trackerApiKey` on User model |
-| vaId | string | VA identifier (informational) |
-| screenshotFreq | number | Screenshots per 10-minute interval (default 1) |
-| idleTimeoutMin | number | Minutes before idle dialog appears (default 5) |
-| autoStopIdleMin | number | Minutes before unanswered idle prompt auto-stops timer (default 15) |
-| blurScreenshots | boolean | Whether to blur captured screenshots |
-| trackApps | boolean | Whether to track active application names |
-| trackUrls | boolean | Whether to track browser URLs |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| apiBaseUrl | string | **Yes** | URL of the API server |
+| apiKey | string | **Yes** | API key (must start with `vt_`), maps to `trackerApiKey` on User model. The server resolves `orgId` and `userId` from this key. |
+| screenshotFreq | number | No | Screenshots per 10-minute interval (default: server-provided or 1) |
+| idleTimeoutMin | number | No | Minutes before idle dialog appears (default: server-provided or 5) |
+| autoStopIdleMin | number | No | Minutes before unanswered idle prompt auto-stops timer (default: server-provided or 15) |
+| blurScreenshots | boolean | No | Whether to blur captured screenshots (default: server-provided or false) |
+| trackApps | boolean | No | Whether to track active application names (default: server-provided or true) |
+| trackUrls | boolean | No | Whether to track browser URLs (default: server-provided or true) |
 
 On startup, the agent:
 1. Checks Electron safeStorage for cached API key
@@ -129,12 +137,14 @@ On startup, the agent:
 
 ## AWS WorkSpace Deployment
 
-Steps to deploy the agent on an AWS WorkSpace:
+**Production provisioning is automatic.** When a VA is hired on va-platform and their WorkSpace becomes AVAILABLE, the `sync-activity` cron calls `deployTrackerConfig()` which uses AWS SSM RunCommand to write `config.json` to `C:\ProgramData\ValerieAgent\config.json`. Only `apiKey` and `apiBaseUrl` are written -- the server resolves everything else from the API key. Zero manual setup required.
 
-1. **Create config.json** with the VA's API key and Vercel URL:
+For manual setup or testing:
+
+1. **Create config.json** with just the two required fields:
 ```powershell
 mkdir C:\ProgramData\ValerieAgent
-# Create config.json with apiBaseUrl, apiKey, and settings
+Set-Content -Path "C:\ProgramData\ValerieAgent\config.json" -Value '{"apiBaseUrl":"https://staging.hirevalerie.com","apiKey":"vt_your_key_here"}'
 ```
 
 2. **Install the agent** -- run "Valerie Agent Setup 0.3.5.exe" (NSIS installer, `perMachine: true` defaults to `C:\Program Files\Valerie Agent\`)
@@ -161,6 +171,8 @@ A Manifest V3 Chrome extension captures the active tab URL and sends it to the a
 
 **Config:** Gated behind `trackUrls` config flag (returned from `GET /api/tracker/config`).
 
+**Privacy note:** Full URLs including query parameters are captured (e.g., LinkedIn authwall URLs with tracking tokens). Future enhancement: URL truncation or query param stripping for privacy and storage efficiency.
+
 ### Verified Test Results (AWS WorkSpace, 2026-02-27 through 2026-03-03, v0.1.7-v0.3.5)
 
 - Install + launch: PASSED
@@ -183,7 +195,7 @@ A Manifest V3 Chrome extension captures the active tab URL and sends it to the a
 To create a golden image with the agent pre-installed for all new WorkSpaces:
 
 1. **Spin up a fresh WorkSpace** from the default Windows bundle
-2. **RDP in** and create `C:\ProgramData\ValerieAgent\config.json` with the VA's API key and Vercel URL
+2. **RDP in** and create `C:\ProgramData\ValerieAgent\config.json` with `apiKey` and `apiBaseUrl` (only two required fields -- server resolves orgId/userId from the key). In production, va-platform provisions this automatically via SSM RunCommand.
 3. **Download** "Valerie Agent Setup 0.3.5.exe" from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases)
 4. **Run the installer** -- `perMachine: true` defaults to `C:\Program Files\Valerie Agent\` (system volume). Installer also deploys Chrome extension files to `C:\ProgramData\ValerieAgent\` and sets force-install policy in HKLM registry.
 5. **Verify agent**: `Test-Path "C:\Program Files\Valerie Agent\Valerie Agent.exe"`
@@ -248,16 +260,10 @@ C:\ProgramData\ValerieAgent\config.json
 ```json
 {
   "apiBaseUrl": "http://localhost:3000",
-  "apiKey": "vt_test123",
-  "vaId": "test-va-001",
-  "screenshotFreq": 1,
-  "idleTimeoutMin": 5,
-  "autoStopIdleMin": 15,
-  "blurScreenshots": false,
-  "trackApps": true,
-  "trackUrls": true
+  "apiKey": "vt_test123"
 }
 ```
+Only `apiKey` and `apiBaseUrl` are required. Optional overrides (screenshotFreq, idleTimeoutMin, etc.) can be added but the server provides them via `/api/tracker/config`.
 
 3. **Start the web API** in one terminal:
 ```bash

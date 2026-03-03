@@ -7,6 +7,9 @@
 > - **API routes** now include `/api/tracker/ping` and `/api/tracker/config` (not in original plan).
 > - **Sync route fixes** applied during WorkSpace testing: nullable taskId in Zod schema, timeEntryId resolution from idempotency keys for child records.
 > - **Seed script** available at `prisma/seed.ts` -- run `npx prisma db seed` to create test data (1 user, 1 org, 2 projects, 6 tasks).
+> - **config.json only requires `apiKey` and `apiBaseUrl`** -- the server resolves `orgId` and `userId` from the API key. All other settings are fetched from the server.
+> - **Production provisioning is automatic** -- va-platform provisions config.json via AWS SSM RunCommand (`deployTrackerConfig()`) when a VA is hired and their WorkSpace becomes AVAILABLE. Zero manual setup.
+> - **v0.3.5 end-to-end test verified** -- full chain confirmed working on AWS WorkSpace (extension force-install, URL capture, sync to staging.hirevalerie.com, screenshots, activity, idle detection).
 > - See STATUS.md for current build status and INTEGRATION-GUIDE.md for the complete task checklist (all DONE).
 
 ## Overview

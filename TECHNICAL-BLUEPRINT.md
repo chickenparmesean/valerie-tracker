@@ -78,6 +78,8 @@ Poll every **3 seconds** and aggregate time-per-application by tracking the prev
 
 **Enterprise force-install policy (v0.3.5):** Chrome 145 blocks sideloaded extensions installed via the CRX external extension registry (`HKLM\SOFTWARE\Google\Chrome\Extensions\`) with a "can't verify" error that disables the extension. The workaround is Chrome's enterprise force-install mechanism: the NSIS installer (`agent/build/installer.nsh`) writes an `update.xml` manifest (gupdate format) to `C:\ProgramData\ValerieAgent\` pointing to the local CRX file, and sets `HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist` with a value of `lpdlfbkigloncemklhgcclimjfbglfkk;file:///C:/ProgramData/ValerieAgent/update.xml`. Chrome reads this policy on launch and installs the extension automatically. The extension cannot be disabled by the user and survives reboots. All files are on the C: drive and all registry entries in HKLM, making the setup safe for golden image capture.
 
+**URL privacy observation (v0.3.5 testing):** Full URLs including query parameters are captured and sent in sync payloads (e.g., LinkedIn authwall URLs with tracking tokens like `?trk=...&session_redirect=...`). Future enhancement: URL truncation or query parameter stripping for privacy and storage efficiency.
+
 ### Activity detection: built-in `powerMonitor` with `desktop-idle` fallback
 
 **Use Electron's `powerMonitor.getSystemIdleTime()`** as the primary approach. On Windows, it internally calls `GetLastInputInfo`—a single Win32 syscall with effectively **zero CPU overhead**. Poll every 1 second; if idle time is under 1 second, mark that second as "active."
@@ -296,6 +298,8 @@ Configure electron-builder's generic provider to point at an S3 bucket containin
 ### Golden image deployment on AWS WorkSpaces
 
 The deployment workflow: launch a standard WorkSpace, install the Electron app, add a **Registry Run key** (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`) for auto-launch at login, create an AWS WorkSpace Image (takes ~45 minutes), then create a Custom Bundle from that image. All future WorkSpaces launched from this bundle will have the tracker pre-installed and auto-starting. For updates, the auto-updater handles it—no need to rebuild the golden image for each release.
+
+**Production config provisioning (v0.3.5 verified):** In production, va-platform provisions `config.json` automatically via AWS SSM RunCommand. When a VA is hired and their WorkSpace becomes AVAILABLE, the va-platform `sync-activity` cron calls `deployTrackerConfig()` which uses SSM to write `config.json` to `C:\ProgramData\ValerieAgent\config.json`. The config only requires `apiKey` and `apiBaseUrl` -- the server resolves `orgId` and `userId` from the API key. Zero manual setup required in production.
 
 ### Memory budget on 4GB WorkSpaces
 

@@ -199,6 +199,24 @@ All tests conducted on a real AWS WorkSpace. Every test passed.
 | Page title tracking (v0.2.4) | PASSED | Chrome page titles extracted correctly. Logged on title change only. |
 | Sync to va-platform (v0.2.5+) | PASSED | Time entries, activity snapshots, window samples, screenshots all sync to staging.hirevalerie.com. Presign 400 resolved (field casing fix). Today total working (GET /api/tracker/time-entries endpoint built). |
 
+### v0.3.5 End-to-End Test Results (2026-03-03)
+
+Full chain verified on AWS WorkSpace. All tests passed.
+
+| Test | Result | Details |
+|------|--------|---------|
+| Extension force-install via enterprise policy | PASSED | ExtensionInstallForcelist registry key -- extension installs on Chrome launch, cannot be disabled by user |
+| URL capture from Chrome | PASSED | Active tab URLs captured by extension, sent through localhost HTTP bridge (127.0.0.1:19876), attached to WindowSample sync payloads |
+| Sync to staging.hirevalerie.com | PASSED | All record types (time entries, activity snapshots, window samples, screenshots) land correctly |
+| Stale URL expiry | PASSED | URLs expire after 30s of no extension updates -- getLastUrl() returns null |
+| Screenshot capture + WebP compression | PASSED | Screenshots captured, compressed to WebP, queued for upload |
+| Activity polling + idle detection | PASSED | 1s activity polls, idle detection with configurable threshold |
+| Timer start/stop | PASSED | Timer state transitions correct, durationSec accurate |
+
+**Note:** va-platform currently drops the `url` field on ingest -- the WindowSample model on va-platform is missing the `url` column, so the sync Zod schema silently strips it. This is a va-platform task, not an agent bug. The agent correctly sends `url` in the sync payload as of v0.3.0.
+
+**URL tracking observation:** Full URLs including query parameters are captured and sent (e.g., LinkedIn authwall URLs with tracking tokens like `?trk=...&session_redirect=...`). Future enhancement: consider URL truncation or query parameter stripping for privacy and storage efficiency.
+
 **Native modules on WorkSpaces: ALL PASSED** -- screenshot-desktop, @miniben90/x-win, powerMonitor.getSystemIdleTime(), better-sqlite3, sharp all work out of the box. No fallbacks needed (desktop-idle not required).
 
 **Sync route fixes required during testing:**
@@ -306,15 +324,15 @@ The installer uses `perMachine: true`, which defaults to `C:\Program Files\Valer
 ### Full Golden Image Workflow
 
 1. **Spin up a fresh WorkSpace** from the default Windows bundle (no existing agent install)
-2. **RDP into the WorkSpace** and create the config file:
+2. **Create the config file** -- in production, va-platform provisions this automatically via AWS SSM RunCommand (`deployTrackerConfig()`) when a VA is hired and their WorkSpace becomes AVAILABLE. For manual setup or golden image testing, RDP in and create it:
    ```powershell
    New-Item -ItemType Directory -Force -Path "C:\ProgramData\ValerieAgent"
    Set-Content -Path "C:\ProgramData\ValerieAgent\config.json" -Value '{
-     "apiBaseUrl": "https://valerie-tracker-web.vercel.app",
-     "apiKey": "vt_your_api_key_here",
-     "vaId": "golden-image-va"
+     "apiBaseUrl": "https://staging.hirevalerie.com",
+     "apiKey": "vt_your_api_key_here"
    }'
    ```
+   **Only `apiKey` and `apiBaseUrl` are required.** The server resolves `orgId` and `userId` from the API key via `/api/tracker/ping` and `/api/tracker/config`. All other settings (screenshotFreq, idleTimeoutMin, trackUrls, etc.) are fetched from the server and merged automatically.
 3. **Download the installer** from GitHub Releases (Valerie Agent Setup 0.3.5.exe)
 4. **Run the installer** -- perMachine defaults to `C:\Program Files\Valerie Agent\` (user can still change it, but the default is correct). Installer also deploys Chrome extension files and sets force-install policy.
 5. **Verify the install**:
@@ -340,6 +358,10 @@ The installer uses `perMachine: true`, which defaults to `C:\Program Files\Valer
 10. **Create Custom Bundle** from the captured image
 
 All files persist in golden images: agent on C: drive (`C:\Program Files\Valerie Agent\`), extension files on C: drive (`C:\ProgramData\ValerieAgent\`), and force-install policy in HKLM registry. Each VA's WorkSpace needs its own `config.json` with the correct API key.
+
+### Production Provisioning via SSM
+
+In production, config.json is provisioned automatically -- zero manual setup required. When a VA is hired on va-platform and their AWS WorkSpace status becomes AVAILABLE, the va-platform `sync-activity` cron job calls `deployTrackerConfig()`, which uses AWS SSM RunCommand to write `config.json` to `C:\ProgramData\ValerieAgent\config.json` on the WorkSpace. The config only contains `apiKey` and `apiBaseUrl` -- the server resolves `orgId` and `userId` from the API key. The VA opens their WorkSpace and the agent is already authenticated, showing their projects and tasks with no manual setup.
 
 ---
 
@@ -389,6 +411,9 @@ All files persist in golden images: agent on C: drive (`C:\Program Files\Valerie
 - CORS headers on URL bridge verified working (v0.3.1)
 - All files on C: drive (C:\ProgramData\ValerieAgent\), all registry in HKLM -- safe for golden image capture
 - Debug logging added in v0.3.4 for full chain visibility
+
+**URL privacy consideration:**
+- Full URLs including query parameters are captured (e.g., LinkedIn URLs with `?trk=...&session_redirect=...` tokens). Consider URL truncation or query param stripping as a future enhancement for privacy and storage efficiency.
 
 **Standing issues (agent side):**
 - DevTools permanently broken on WorkSpaces due to Chromium Intl.Locale bug with empty locale. Use console.log debugging via PowerShell instead. Cannot be fixed with flags.
