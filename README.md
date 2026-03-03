@@ -4,7 +4,7 @@ A Hubstaff-replacement time tracker for virtual assistants. Electron desktop age
 
 ## Current Status
 
-**v0.2.7 stable -- Stale Timer Fix + Auto-Stop on Prolonged Idle (2026-03-02).**
+**v0.2.8 stable -- Close Warning + Note Input (2026-03-03).**
 
 All 18 integration guide tasks complete. The Electron agent (branded "Valerie Agent" since v0.1.7) has been tested end-to-end on a real AWS WorkSpace. Agent now syncs to va-platform at staging.hirevalerie.com.
 
@@ -12,6 +12,8 @@ All 18 integration guide tasks complete. The Electron agent (branded "Valerie Ag
 - Config.json + API key auth working
 - All 5 native modules work out of the box (screenshot-desktop, x-win, powerMonitor, better-sqlite3, sharp)
 - Time tracking, activity snapshots, window samples, and screenshots all capture and sync correctly
+- Close warning dialog when window X clicked while timer running -- prevents accidental timer stop (v0.2.8)
+- Note input wired end-to-end -- VA can add notes to time entries, synced in payload (v0.2.8)
 - Stale timer detection on resume -- auto-stops with correct durationSec after reboot/force-kill (v0.2.7)
 - Auto-stop on prolonged unanswered idle -- 15 min configurable timeout (v0.2.7)
 - Screenshot metadata now correctly includes storageUrl/storagePath (v0.2.6)
@@ -133,7 +135,7 @@ mkdir C:\ProgramData\ValerieAgent
 # Create config.json with apiBaseUrl, apiKey, and settings
 ```
 
-2. **Install the agent** -- run "Valerie Agent Setup 0.2.7.exe" (NSIS installer, `perMachine: true` defaults to `C:\Program Files\Valerie Agent\`)
+2. **Install the agent** -- run "Valerie Agent Setup 0.2.8.exe" (NSIS installer, `perMachine: true` defaults to `C:\Program Files\Valerie Agent\`)
 
 3. **Launch** -- the agent verifies the API key, fetches config from the server, and shows projects/tasks. For debug output, launch from PowerShell:
 ```powershell
@@ -163,7 +165,7 @@ To create a golden image with the agent pre-installed for all new WorkSpaces:
 
 1. **Spin up a fresh WorkSpace** from the default Windows bundle
 2. **RDP in** and create `C:\ProgramData\ValerieAgent\config.json` with the VA's API key and Vercel URL
-3. **Download** "Valerie Agent Setup 0.2.7.exe" from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases)
+3. **Download** "Valerie Agent Setup 0.2.8.exe" from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases)
 4. **Run the installer** -- `perMachine: true` defaults to `C:\Program Files\Valerie Agent\` (system volume)
 5. **Verify**: `Test-Path "C:\Program Files\Valerie Agent\Valerie Agent.exe"`
 6. **Launch agent**, verify API connection (MainScreen shows projects)

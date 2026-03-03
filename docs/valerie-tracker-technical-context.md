@@ -1,7 +1,7 @@
 # Valerie Tracker -- Technical Context
 
 > Comprehensive reference for anyone (human or AI) integrating the Valerie Agent into va-platform.
-> Based on actual source code as of v0.2.7, branch: staging.
+> Based on actual source code as of v0.2.8, branch: staging.
 
 ---
 
@@ -51,7 +51,9 @@ The agent registers itself in the Windows Registry at `HKCU\Software\Microsoft\W
 ### System Tray vs BrowserWindow
 
 - The BrowserWindow is the main UI (380x640, resizable, frame: true)
-- On close, the window hides to tray instead of quitting (`event.preventDefault()` + `mainWindow.hide()`)
+- On close while timer is NOT running, the window hides to tray instead of quitting (`event.preventDefault()` + `mainWindow.hide()`)
+- On close while timer IS running, a native dialog appears via `dialog.showMessageBox`: "Stop tracking? Closing Valerie Agent will stop your timer and end the current work session. Any time tracked so far will be saved." with buttons "Keep Working" (cancels close) and "Stop & Close" (calls stopTimer() then app.quit()). Added in v0.2.8.
+- Tray "Quit" always quits immediately without showing the close warning dialog
 - The system tray icon is a programmatically-generated 16x16 colored square (green `#2D6A4F` when tracking, gray `#8E8E9A` when idle)
 - Tray click toggles window visibility
 - Tray tooltip updates every 1s with elapsed time
@@ -75,6 +77,7 @@ All renderer-to-main communication goes through the preload bridge. Channels:
 | Renderer -> Main | `time:getTodayTotal` | invoke | Fetch today's total seconds from API |
 | Renderer -> Main | `tasks:create` | invoke | Create task under project |
 | Renderer -> Main | `app:version` | invoke | Get app version string |
+| Renderer -> Main | `timer:setNote` | invoke | Set note text on current running time entry (v0.2.8) |
 | Renderer -> Main | `idle:respond` | send | User's idle dialog choice |
 | Main -> Renderer | `timer:update` | send | Every-second timer tick |
 | Main -> Renderer | `timer:stopped` | send | Timer was stopped |
@@ -110,7 +113,7 @@ All renderer-to-main communication goes through the preload bridge. Channels:
     taskId?: string | null;    // cuid from server, null if taskless
   }
   ```
-- **Logic**: On start, generates UUID, persists to SQLite `active_time_entry` table (single-row, id=1). Immediately queues a RUNNING sync. Every 1s, recalculates `elapsedSec` and emits `timer:update` to renderer. Every 60s, writes `last_tick_at` timestamp to `active_time_entry` for stale detection. On stop, queues a STOPPED sync with final `durationSec`, `activeSec`, `idleSec`, and `stoppedAt`. Clears `active_time_entry`. On app restart, `resumeTimer()` reads `active_time_entry` and checks if status is RUNNING. If the gap between now and `last_tick_at` (or `startedAt` if no tick recorded) exceeds the idle threshold, the timer is auto-stopped with `durationSec` reflecting actual work time up to the last known activity -- not including reboot/downtime gap. If the gap is within threshold, the timer resumes normally (v0.2.7).
+- **Logic**: On start, generates UUID, persists to SQLite `active_time_entry` table (single-row, id=1). Immediately queues a RUNNING sync. Every 1s, recalculates `elapsedSec` and emits `timer:update` to renderer. Every 60s, writes `last_tick_at` timestamp to `active_time_entry` for stale detection. On stop, queues a STOPPED sync with final `durationSec`, `activeSec`, `idleSec`, and `stoppedAt`. Clears `active_time_entry`. On app restart, `resumeTimer()` reads `active_time_entry` and checks if status is RUNNING. If the gap between now and `last_tick_at` (or `startedAt` if no tick recorded) exceeds the idle threshold, the timer is auto-stopped with `durationSec` reflecting actual work time up to the last known activity -- not including reboot/downtime gap. If the gap is within threshold, the timer resumes normally (v0.2.7). Note state: `currentNote` string managed via `setTimerNote()` export; note is included in the sync payload when queueing time entries. Note is reset to empty on stop (v0.2.8).
 
 ### ActivitySnapshot
 
@@ -495,7 +498,7 @@ The server returns org-level settings via `GET /api/tracker/config`. These overr
 - Header: Valerie Agent logo + brand name (dark nav bar `#1A1A2E`), project refresh button (v0.2.2)
 - Project list: expandable projects with nested tasks, play buttons, inline task creation
 - Timer section: status dot (green/gray), status text ("Working -- [task]" or "Not tracking"), `HH : MM : SS` display, STOP button
-- Note input: text field for adding notes (visible when timer is running)
+- Note input: text field + submit button visible while timer is running. VA types a note, clicks submit, note is sent to main process via `timer:setNote` IPC and attached to the current time entry. Input clears after submit; VA does not see the note again. Note is included in the next sync payload (v0.2.8).
 - Today total display: "Today: Xh Xm" footer, polls every 30s via time:getTodayTotal IPC, refreshes on timer start/stop, falls back to local SQLite sum if API returns 404 (v0.2.4)
 - Fonts: DM Sans (body text), DM Mono (timer display)
 
@@ -550,7 +553,7 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 
 ## 10. Known Limitations
 
-1. **Auto-update unreliable** -- electron-updater detects and downloads updates from GitHub Releases, but NSIS install-on-restart does not consistently work. Current deployment method: download latest installer (Valerie Agent Setup 0.2.7.exe) from GitHub Releases and run manually (overwrites previous install).
+1. **Auto-update unreliable** -- electron-updater detects and downloads updates from GitHub Releases, but NSIS install-on-restart does not consistently work. Current deployment method: download latest installer (Valerie Agent Setup 0.2.8.exe) from GitHub Releases and run manually (overwrites previous install).
 
 2. **No code signing** -- `sign: false` in electron-builder.yml. `signAndEditExecutable: true` allows rcedit to embed the icon in the .exe without signing. SmartScreen may warn on untrusted machines, but this is not an issue for managed AWS WorkSpaces.
 
@@ -589,6 +592,8 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 - **Screenshot notification removed (v0.2.6)** -- Screenshots captured silently, no desktop notification.
 - **Stale timer detection on resume (v0.2.7)** -- `last_tick_at` persisted every 60s; on resume, gap check auto-stops stale timers with correct `durationSec`.
 - **Auto-stop on prolonged unanswered idle (v0.2.7)** -- If idle prompt goes unanswered for `autoStopIdleMin` (default 15 min), timer auto-stops and idle time is discarded.
+- **Close warning dialog (v0.2.8)** -- When window X is clicked while timer is running, native `dialog.showMessageBox` warns and offers "Keep Working" or "Stop & Close". If timer is not running, window hides to tray as before.
+- **Note input wired end-to-end (v0.2.8)** -- `timer:setNote` IPC channel, `setTimerNote()` in timer.ts, note included in sync payload (previously always null).
 
 ---
 

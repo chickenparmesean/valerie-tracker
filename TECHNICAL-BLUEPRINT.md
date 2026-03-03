@@ -2,7 +2,7 @@
 
 ## Implementation Notes (2026-02-27)
 
-All recommended packages were used and work correctly on AWS WorkSpaces. Testing was conducted on a real AWS WorkSpace. Current stable version is v0.2.7. Versions v0.2.1-v0.2.5 added debug logging, screenshot privacy gating, single instance lock, graceful shutdown, Chrome page title tracking, project refresh button, and today total display. v0.2.6 fixed screenshot metadata URLs and removed screenshot notification. v0.2.7 fixed stale timer resume after reboot and added auto-stop on prolonged unanswered idle. Agent now syncs to va-platform at staging.hirevalerie.com.
+All recommended packages were used and work correctly on AWS WorkSpaces. Testing was conducted on a real AWS WorkSpace. Current stable version is v0.2.8. Versions v0.2.1-v0.2.5 added debug logging, screenshot privacy gating, single instance lock, graceful shutdown, Chrome page title tracking, project refresh button, and today total display. v0.2.6 fixed screenshot metadata URLs and removed screenshot notification. v0.2.7 fixed stale timer resume after reboot and added auto-stop on prolonged unanswered idle. v0.2.8 added close warning dialog on window close when timer is running and wired note input end-to-end to sync payload. Agent now syncs to va-platform at staging.hirevalerie.com.
 
 ### Package Performance on AWS WorkSpaces
 
