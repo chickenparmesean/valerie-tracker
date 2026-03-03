@@ -404,3 +404,84 @@ All 18 integration guide tasks are DONE. The Electron desktop agent has been tes
 **The project is ready for va-platform integration.** The agent repo stays alive for future agent updates. The web/ folder (standalone API) gets retired when va-platform absorbs the routes.
 
 **When all 18 items are done, hand it back to the va-platform project for integration.**
+
+---
+
+## Current Integration Status (v0.2.5)
+
+The agent now syncs to va-platform at staging.hirevalerie.com (previously used standalone API at valerie-tracker-web.vercel.app).
+
+### Working sync routes on va-platform
+
+| Route | Method | Status |
+|-------|--------|--------|
+| /api/tracker/sync | POST | Working -- time entries, activity snapshots, window samples all land correctly |
+| /api/tracker/ping | GET | Working -- key validation works |
+| /api/tracker/config | GET | Working -- returns org settings correctly |
+
+### Broken/missing on va-platform
+
+| Route | Method | Issue |
+|-------|--------|-------|
+| /api/tracker/screenshots/presign | POST | Returns 400 -- field mismatch in Zod schema |
+| /api/tracker/time-entries | GET | Returns 404 -- endpoint not built yet |
+| pageTitle field | -- | Not yet accepted in sync Zod schema or stored in WindowSample table |
+
+### Agent sync payload shape (v0.2.5)
+
+```json
+{
+  "timeEntries": [{
+    "idempotencyKey": "uuid",
+    "startedAt": "ISO 8601",
+    "stoppedAt": "ISO 8601 | null",
+    "durationSec": "number | null",
+    "status": "RUNNING | STOPPED | IDLE_DISCARDED",
+    "projectId": "string | null",
+    "taskId": "string | null",
+    "note": "string | null"
+  }],
+  "activitySnapshots": [{
+    "idempotencyKey": "uuid",
+    "timestamp": "ISO 8601",
+    "activityPct": "0-100",
+    "keyboardPct": "number | null",
+    "mousePct": "number | null",
+    "timeEntryIdempotencyKey": "uuid"
+  }],
+  "windowSamples": [{
+    "idempotencyKey": "uuid",
+    "timestamp": "ISO 8601",
+    "appName": "string",
+    "windowTitle": "string | null",
+    "pageTitle": "string | null",
+    "processPath": "string | null",
+    "durationSec": "number",
+    "timeEntryIdempotencyKey": "uuid"
+  }],
+  "screenshots": [{
+    "idempotencyKey": "uuid",
+    "capturedAt": "ISO 8601",
+    "storageUrl": "string",
+    "storagePath": "string | null",
+    "activityPct": "number | null",
+    "activeApp": "string | null",
+    "fileSizeBytes": "number | null",
+    "timeEntryIdempotencyKey": "uuid"
+  }]
+}
+```
+
+### Agent presign request shape
+
+```json
+{
+  "filename": "{idempotencyKey}.webp",
+  "contentType": "image/webp",
+  "timeEntryIdempotencyKey": "uuid",
+  "capturedAt": "ISO 8601",
+  "activityPct": 62,
+  "activeApp": "Google Chrome",
+  "fileSizeBytes": 85000
+}
+```

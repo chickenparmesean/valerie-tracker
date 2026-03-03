@@ -1,7 +1,7 @@
 # Valerie Tracker — MVP Project Plan
 
-> **Note (2026-02-28):** This is the original build plan. Some sections are now stale:
-> - **All 18 integration guide tasks are complete.** WorkSpace testing passed (2026-02-27). Agent is production-ready for va-platform integration. Current stable version is v0.2.0 (rebranded from "Valerie Tracker" to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9, `perMachine: true` added in v0.2.0 for C: drive install on golden images). Five intermediate releases (v0.1.1-v0.1.5) were shipped to fix WorkSpace renderer crashes. See STATUS.md for details.
+> **Note (2026-03-02):** This is the original build plan. Some sections are now stale:
+> - **All 18 integration guide tasks are complete.** WorkSpace testing passed (2026-02-27). Current stable version is v0.2.5. Versions v0.2.1-v0.2.5 added debug logging, screenshot privacy gating, single instance lock, graceful shutdown, Chrome page title tracking, project refresh button, and today total display. Agent now syncs to va-platform at staging.hirevalerie.com. See STATUS.md for details.
 > - **Auth** has been swapped from Supabase Auth (JWT) to API key auth (`Bearer vt_...`). See INTEGRATION-GUIDE.md for current auth design.
 > - **Web dashboard** (Phase 4) has been removed. Production dashboard lives in va-platform repo. The web/ folder is now a headless API server only.
 > - **API routes** now include `/api/tracker/ping` and `/api/tracker/config` (not in original plan).

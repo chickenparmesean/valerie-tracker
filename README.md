@@ -4,15 +4,20 @@ A Hubstaff-replacement time tracker for virtual assistants. Electron desktop age
 
 ## Current Status
 
-**v0.2.0 stable -- perMachine install for WorkSpaces golden images (2026-03-01).**
+**v0.2.5 stable -- Debug Logging + Privacy Fix + Single Instance + Page Title Tracking (2026-03-02).**
 
-All 18 integration guide tasks complete. The Electron agent (branded "Valerie Agent" since v0.1.7) has been tested end-to-end on a real AWS WorkSpace. v0.2.0 adds `perMachine: true` to the NSIS config so the installer defaults to `C:\Program Files\` (required for golden images -- C: drive persists, D: does not).
+All 18 integration guide tasks complete. The Electron agent (branded "Valerie Agent" since v0.1.7) has been tested end-to-end on a real AWS WorkSpace. Agent now syncs to va-platform at staging.hirevalerie.com.
 
-- NSIS installer works, auto-launches on reboot
-- Config.json + API key auth working against Vercel API
+- NSIS installer works (`perMachine: true`), auto-launches on reboot
+- Config.json + API key auth working
 - All 5 native modules work out of the box (screenshot-desktop, x-win, powerMonitor, better-sqlite3, sharp)
 - Time tracking, activity snapshots, window samples, and screenshots all capture and sync correctly
-- Two server-side sync route fixes applied during testing (nullable taskId, timeEntryId resolution)
+- Single instance lock prevents duplicate windows
+- Screenshot/activity/window tracking gated behind timer running state (privacy fix)
+- Chrome page title extraction from window titles
+- Today total display with API + local SQLite fallback
+- Comprehensive debug logging with log prefixes for all engine modules
+- Graceful shutdown with engine cleanup
 
 See STATUS.md for full test results and INTEGRATION-GUIDE.md for the complete task checklist.
 
@@ -123,7 +128,7 @@ mkdir C:\ProgramData\ValerieAgent
 # Create config.json with apiBaseUrl, apiKey, and settings
 ```
 
-2. **Install the agent** -- run "Valerie Agent Setup 0.2.0.exe" (NSIS installer, `perMachine: true` defaults to `C:\Program Files\Valerie Agent\`)
+2. **Install the agent** -- run "Valerie Agent Setup 0.2.5.exe" (NSIS installer, `perMachine: true` defaults to `C:\Program Files\Valerie Agent\`)
 
 3. **Launch** -- the agent verifies the API key, fetches config from the server, and shows projects/tasks. For debug output, launch from PowerShell:
 ```powershell
@@ -132,7 +137,7 @@ mkdir C:\ProgramData\ValerieAgent
 
 4. **Auto-launches on reboot** -- Registry Run key at `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` ensures the agent starts on Windows login
 
-### Verified Test Results (AWS WorkSpace, 2026-02-27, v0.1.7–v0.2.0)
+### Verified Test Results (AWS WorkSpace, 2026-02-27 through 2026-03-02, v0.1.7-v0.2.5)
 
 - Install + launch: PASSED
 - Config.json auth + Vercel API connection: PASSED
@@ -153,7 +158,7 @@ To create a golden image with the agent pre-installed for all new WorkSpaces:
 
 1. **Spin up a fresh WorkSpace** from the default Windows bundle
 2. **RDP in** and create `C:\ProgramData\ValerieAgent\config.json` with the VA's API key and Vercel URL
-3. **Download** "Valerie Agent Setup 0.2.0.exe" from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases)
+3. **Download** "Valerie Agent Setup 0.2.5.exe" from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases)
 4. **Run the installer** -- `perMachine: true` defaults to `C:\Program Files\Valerie Agent\` (system volume)
 5. **Verify**: `Test-Path "C:\Program Files\Valerie Agent\Valerie Agent.exe"`
 6. **Launch agent**, verify API connection (MainScreen shows projects)
@@ -397,6 +402,34 @@ Known Chromium bug with empty `Intl.Locale` on some Windows configurations. Fixe
 
 ### Projects not loading / .map() error
 The `/api/tracker/projects` endpoint returns `{ projects: [...] }`. The `ipc.ts` handler must unwrap this: `return Array.isArray(data) ? data : data.projects || []`. If MainScreen shows white screen with a TypeError in console, this is the cause.
+
+## Debugging on WorkSpaces
+
+DevTools is permanently broken on WorkSpaces due to a Chromium Intl.Locale bug with empty locale. Use console.log debugging via PowerShell instead.
+
+**Launch with full log capture:**
+```powershell
+& "C:\Program Files\Valerie Agent\Valerie Agent.exe" 2>&1 | Tee-Object -FilePath "$env:USERPROFILE\Desktop\agent-debug.log"
+```
+
+**Log prefixes by module:**
+| Prefix | Module |
+|--------|--------|
+| [Native] | Native module probing on startup |
+| [Engine] | Engine lifecycle (start/stop) |
+| [Timer] | Timer state transitions |
+| [Activity] | Activity polling (1s) and snapshots (60s) |
+| [Window] | Window tracking (3s polling), app switches, page titles |
+| [Screenshot] | Screenshot capture + compression |
+| [Idle] | Idle detection and threshold checks |
+| [Sync] | Sync engine cycles, POST results |
+| [DB] | SQLite outbox operations |
+| [IPC] | IPC handler calls from renderer |
+| [App] | App lifecycle events |
+| [AutoUpdater] | Update checks and downloads |
+| [DevTools] | DevTools open attempts |
+
+All engine modules log to stdout as of v0.2.1. Page title changes log only on change (not every poll) as of v0.2.5. Debug logging should be stripped or gated behind `--verbose` before final production release.
 
 ## Design System
 

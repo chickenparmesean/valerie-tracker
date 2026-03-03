@@ -1,11 +1,11 @@
 # Valerie Tracker -- Build Status
 
-Last updated: 2026-03-01
+Last updated: 2026-03-02
 Branch: staging
 
-## Overall Status: v0.2.0 Stable -- perMachine Install for WorkSpaces Golden Images
+## Overall Status: v0.2.5 Stable -- Debug Logging + Privacy Fix + Single Instance + Page Title Tracking
 
-All 6 build phases completed. All 18 integration guide tasks DONE. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12). NSIS installer built and verified (task 13). WorkSpace testing completed (tasks 14-18) -- initial tests passed but three additional renderer/DevTools issues were discovered during sustained WorkSpace use, requiring fixes through v0.1.1-v0.1.6. Two server-side sync route fixes also applied during testing (nullable taskId, timeEntryId resolution from idempotency keys). v0.1.7 rebranded the desktop app from "Valerie Tracker" to "Valerie Agent" -- updated installer name, install path, config path, window icon, and logo. v0.1.8 bundled icon.ico in extraResources for the runtime window icon. v0.2.0 fixed signAndEditExecutable to embed the icon in the .exe binary. **v0.2.0 added `perMachine: true` to the NSIS config** -- the installer now defaults to `C:\Program Files\Valerie Agent\` instead of per-user AppData. This is required for AWS WorkSpaces golden images because the D: drive (user volume) does not persist in captured images, only the C: drive (system volume) does. Current stable version is v0.2.0, published to GitHub Releases. The agent is production-ready for va-platform integration.
+All 6 build phases completed. All 18 integration guide tasks DONE. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12). NSIS installer built and verified (task 13). WorkSpace testing completed (tasks 14-18) -- initial tests passed but three additional renderer/DevTools issues were discovered during sustained WorkSpace use, requiring fixes through v0.1.1-v0.1.6. Two server-side sync route fixes also applied during testing (nullable taskId, timeEntryId resolution from idempotency keys). v0.1.7 rebranded the desktop app from "Valerie Tracker" to "Valerie Agent" -- updated installer name, install path, config path, window icon, and logo. v0.1.8 bundled icon.ico in extraResources for the runtime window icon. v0.2.0 fixed signAndEditExecutable to embed the icon in the .exe binary. **v0.2.0 added `perMachine: true` to the NSIS config** -- the installer now defaults to `C:\Program Files\Valerie Agent\` instead of per-user AppData. This is required for AWS WorkSpaces golden images because the D: drive (user volume) does not persist in captured images, only the C: drive (system volume) does. **Versions v0.2.1-v0.2.5** were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. Current stable version is v0.2.5, published to GitHub Releases. The agent now syncs to va-platform at staging.hirevalerie.com.
 
 ---
 
@@ -111,6 +111,16 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | v0.1.7: Rebrand Valerie Tracker → Valerie Agent | 8ac08ac | Rename across 11 files, custom icon, fixed auto-update notification text, config path fallback from ValerieTracker to ValerieAgent. |
 | v0.1.8: Bundle icon.ico in extraResources | dc9dcb0 | Added extraResources entry in electron-builder.yml so icon.ico is copied to the installed app's resources/ directory for runtime BrowserWindow icon. |
 | v0.2.0: Fix signAndEditExecutable for exe icon | dc7f6c0 | Changed `signAndEditExecutable: false` to `sign: false` + `signAndEditExecutable: true` so electron-builder uses rcedit to embed the icon in the .exe binary. |
+| Debug logging | v0.2.1 | Added comprehensive console.log to all tracking engine modules (timer, activity, window-tracker, screenshot, idle-detector, sync, database). Native module probing on startup. DevTools opened in undocked mode. --enable-logging flag added. |
+| Screenshot privacy fix | v0.2.2 | Screenshots, activity polling, and window tracking now gated behind timer running state. Zero data collection when timer is off. Previously these engines ran continuously regardless of timer state -- privacy violation. |
+| Project refresh button | v0.2.2 | Added refresh icon button to top-right of navy header bar in MainScreen. Re-fetches project/task list via projects:list IPC. Spinning animation while loading. |
+| Single instance lock | v0.2.3 | Added app.requestSingleInstanceLock(). Second instance quits and focuses existing window. Previously multiple agent windows could be opened simultaneously. |
+| Graceful shutdown | v0.2.3 | All engine modules export stop functions. before-quit handler clears all intervals. Defensive console.log wrapper prevents EPIPE broken pipe crash when piped to PowerShell. |
+| Chrome page title tracking | v0.2.4 | Window tracker extracts page titles from Chrome windows by stripping " - Google Chrome" suffix. Stored as pageTitle field on window samples. Non-Chrome windows send pageTitle: null. |
+| time:getTodayTotal IPC | v0.2.4 | Implemented time:getTodayTotal IPC handler. Calls GET /api/tracker/time-entries?date=YYYY-MM-DD, sums durationSec, adds running timer elapsed. Falls back to local SQLite if API unavailable. Renderer polls every 30 seconds. |
+| pageTitle in sync payload | v0.2.5 | sync.ts now includes pageTitle field when building window sample POST body. shared/src/sync-payload.ts updated with pageTitle type. |
+| Page title log throttle | v0.2.5 | Chrome page title log only fires on title change, not every 3s poll. Reduces log spam from ~20/min to ~1 per page navigation. |
+| time:getTodayTotal path fix | v0.2.5 | Changed API call from /api/time-entries to /api/tracker/time-entries to match va-platform route prefix convention. |
 
 ## Deployment
 
@@ -130,7 +140,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 
 | Item | Detail |
 |------|--------|
-| Installer | Valerie Agent Setup 0.2.0.exe |
+| Installer | Valerie Agent Setup 0.2.5.exe |
 | Size | ~81 MB |
 | Format | NSIS (non-silent, user chooses install dir) |
 | Architecture | Windows x64 only |
@@ -141,7 +151,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Publish command | `cd agent && npm run publish:agent` (requires `GH_TOKEN` env var with repo scope) |
 | Output dir | agent/dist/ |
 | Tested | Installs and launches on dev machine and AWS WorkSpace, all native modules load, full sync verified |
-| Note | Versions 0.1.1-0.1.5 were intermediate debug/fix builds during WorkSpace testing. v0.1.6 was the last release under the "Valerie Tracker" name. v0.1.7 rebranded to "Valerie Agent". v0.1.8 bundled icon.ico for runtime window icon. v0.1.9 fixed exe icon embedding. v0.2.0 added `perMachine: true` for C: drive install on WorkSpaces golden images. v0.2.0 is the current stable release. |
+| Note | Versions 0.1.1-0.1.5 were intermediate debug/fix builds during WorkSpace testing. v0.1.6 was the last release under the "Valerie Tracker" name. v0.1.7 rebranded to "Valerie Agent". v0.1.8 bundled icon.ico for runtime window icon. v0.1.9 fixed exe icon embedding. v0.2.0 added `perMachine: true` for C: drive install on WorkSpaces golden images. Versions v0.2.1-v0.2.5 were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. v0.2.5 is the current stable release. |
 
 ### WorkSpace Testing Results (2026-02-27)
 
@@ -168,6 +178,11 @@ All tests conducted on a real AWS WorkSpace. Every test passed.
 | Renderer stability | FAILED then FIXED (v0.1.5) | White screen after 0.5s. Root cause: `projects:list` IPC returned raw `{ projects: [...] }` object, `.map()` threw TypeError, no error boundary. Secondary: GPU cache permission errors. Tertiary: DevTools broken by empty `Intl.Locale`. |
 | DevTools on WorkSpace | FAILED then FIXED (v0.1.5) | Ctrl+Shift+I produced `Intl.Locale` error. Fixed with `--lang=en-US` flag. |
 | Auto-update (electron-updater) | UNRELIABLE | NSIS auto-update downloads but does not reliably install on app restart. Current workaround: download installer manually from GitHub Releases. Needs investigation. |
+| Debug logging (v0.2.1) | PASSED | All engine modules log to stdout. Native module probing confirms all 4 modules load. Full visibility into timer state, activity polls, window switches, sync cycles. |
+| Screenshot privacy (v0.2.2) | PASSED | Screenshots, activity, window tracking only fire when timer is running. Zero collection when stopped. |
+| Single instance (v0.2.3) | PASSED | Second instance quits immediately, focuses existing window. |
+| Page title tracking (v0.2.4) | PASSED | Chrome page titles extracted correctly. Logged on title change only. |
+| Sync to va-platform (v0.2.5) | PARTIAL | Time entries, activity snapshots, window samples sync to staging.hirevalerie.com. Screenshots blocked by presign 400. Today total blocked by missing endpoint. |
 
 **Native modules on WorkSpaces: ALL PASSED** -- screenshot-desktop, @miniben90/x-win, powerMonitor.getSystemIdleTime(), better-sqlite3, sharp all work out of the box. No fallbacks needed (desktop-idle not required).
 
@@ -309,23 +324,47 @@ All WorkSpaces launched from this bundle will have the agent pre-installed on th
 
 ## Known Issues / Next Steps
 
-**All 18 integration guide tasks DONE.** Web API uses API key auth, deployed to https://valerie-tracker-web.vercel.app with auto-deploys from staging. Agent reads config.json, caches key in safeStorage, pings server, fetches/merges server config, handles offline with cached settings. NSIS installer produces working .exe with all native modules packaged. WorkSpace testing completed (2026-02-27) with post-testing fixes through v0.1.6, rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.2.0. Two sync route fixes and three renderer/DevTools fixes applied. Current stable version is v0.2.0. Agent is production-ready for va-platform integration.
+**Confirmed working on WorkSpaces (v0.2.5):**
+- All native modules: @miniben90/x-win, screenshot-desktop, better-sqlite3, sharp
+- Timer start/stop/resume with state transitions
+- Activity detection via powerMonitor.getSystemIdleTime() -- 1s polling, 60s snapshots
+- Window tracking via x-win -- 3s polling, heartbeat/pulse aggregation, app switch detection
+- Chrome page title extraction from window titles
+- Screenshot capture + WebP compression (73-96KB)
+- Idle detection with configurable threshold
+- Local SQLite outbox -- inserts, reads, sync marking
+- Sync engine -- 60s cycles, batched POST, retry on failure
+- Single instance lock
+- Graceful shutdown with engine cleanup
+- Data collection gated behind timer running state
+- Project refresh button in header
+- Today total display with API + local fallback
 
-**Auto-update via electron-updater is unreliable with NSIS.** The agent detects and downloads updates but installation on restart does not consistently work. Current deployment method: download latest installer from GitHub Releases and run manually (overwrites previous install). Investigate switching to non-NSIS target or fixing quit-and-install flow.
+**Blocked on va-platform (not agent bugs):**
+- Screenshots not uploading: POST /api/tracker/screenshots/presign returns 400. Agent capture + compression works. Presign endpoint field mismatch on va-platform side.
+- Today total shows fallback data: GET /api/tracker/time-entries returns 404. Endpoint not yet built on va-platform. Agent falls back to local SQLite which loses data on WorkSpace restart.
+- Page titles not visible in dashboard: Agent sends pageTitle in sync payload as of v0.2.5. Va-platform needs to add pageTitle column to WindowSample, accept it in sync Zod schema, and display in dashboard.
+
+**Va-platform integration requirements (handoff):**
+1. Fix POST /api/tracker/screenshots/presign -- accept: filename (string), contentType (string), timeEntryIdempotencyKey (string), capturedAt (ISO string), activityPct (number), activeApp (string), fileSizeBytes (number)
+2. Add pageTitle String? to WindowSample Prisma model + sync route Zod schema
+3. Build GET /api/tracker/time-entries?date=YYYY-MM-DD -- returns array of { durationSec, status, startedAt, stoppedAt } filtered by userId from API key
+4. Aggregate pageTitle data for "Top Sites" dashboard display
+
+**Standing issues (agent side):**
+- DevTools permanently broken on WorkSpaces due to Chromium Intl.Locale bug with empty locale. Use console.log debugging via PowerShell instead. Cannot be fixed with flags.
+- Auto-update via electron-updater still unreliable with NSIS. Deploy by downloading installer from GitHub Releases manually.
+- Debug logging (v0.2.1) is still present in all engine modules. Should be stripped or gated behind a --verbose flag before final production release.
+- Locale resource warnings spam stderr on launch (Chromium resource_bundle.cc). Cosmetic only, does not affect functionality.
+
+**Debugging the agent on WorkSpaces:**
+Launch from PowerShell to see all engine output:
+```powershell
+& "C:\Program Files\Valerie Agent\Valerie Agent.exe" 2>&1 | Tee-Object -FilePath "$env:USERPROFILE\Desktop\agent-debug.log"
+```
+Log prefixes: [Native], [Engine], [Timer], [Activity], [Window], [Screenshot], [Idle], [Sync], [DB], [IPC], [App], [AutoUpdater], [DevTools]
 
 **WorkSpaces require Chromium flags:** `app.disableHardwareAcceleration()`, `--disable-gpu`, `--no-sandbox`, `--disable-gpu-sandbox`, `--disk-cache-dir`, `--lang=en-US`. These are set in `agent/src/main/index.ts` before `app.whenReady()`. Do NOT remove them.
-
-**Completed:**
-1. ~~Build NSIS installer (task 13)~~ -- DONE
-2. ~~Test on real AWS WorkSpace (task 14)~~ -- DONE, all tests passed
-3. ~~Fix native module / compatibility issues (task 15)~~ -- DONE, no issues found
-4. ~~Verify screenshot capture + upload end-to-end (task 16)~~ -- DONE
-5. ~~Verify sync engine end-to-end (task 17)~~ -- DONE, two server-side fixes applied
-6. ~~Package final working installer for golden image (task 18)~~ -- DONE, v0.2.0 is the current stable installer (rebranded from "Valerie Tracker" to "Valerie Agent" in v0.1.7; icon fixes in v0.1.8-v0.2.0; 5 intermediate releases v0.1.1-v0.1.5 were needed to fix renderer crashes discovered on WorkSpaces)
-
-**Ready for va-platform integration.** The agent repo stays alive for future agent updates. The web/ folder (standalone API) gets retired when va-platform absorbs the routes.
-
-**Seed script available:** `npx prisma db seed` creates test data -- 1 VA user, 1 org, 2 projects, 6 tasks, 6 task assignments. Test API key: `vt_test123`.
 
 **Standing items:**
 - No automated tests yet -- all testing was manual on AWS WorkSpace
