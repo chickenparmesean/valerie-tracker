@@ -335,10 +335,12 @@ export default function MainScreen({ onLogout }: Props) {
         </div>
       )}
 
-      {/* Today Total */}
+      {/* Today Total — adds running elapsed for real-time display */}
       <div style={styles.todaySection}>
         <span style={styles.todayText}>
-          {todayTotalSec !== null ? formatTodayTotal(todayTotalSec) : 'Today: --'}
+          {todayTotalSec !== null
+            ? formatTodayTotal(todayTotalSec + (timerData.isRunning ? timerData.elapsedSec : 0))
+            : 'Today: --'}
         </span>
       </div>
     </div>

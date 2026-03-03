@@ -153,3 +153,29 @@ export function getActiveTimeEntry(): {
 export function clearActiveTimeEntry(): void {
   db.prepare('DELETE FROM active_time_entry WHERE id = 1').run();
 }
+
+export function getTodayStoppedSecondsFromOutbox(): number {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const dateStr = `${yyyy}-${mm}-${dd}`;
+
+  const stmt = db.prepare(
+    `SELECT payload FROM sync_outbox WHERE type = 'time_entry' AND created_at >= date(?)`
+  );
+  const rows = stmt.all(dateStr) as Array<{ payload: string }>;
+
+  let total = 0;
+  for (const row of rows) {
+    try {
+      const entry = JSON.parse(row.payload);
+      if (entry.status === 'STOPPED' && entry.durationSec) {
+        total += entry.durationSec;
+      }
+    } catch {
+      // skip malformed rows
+    }
+  }
+  return total;
+}
