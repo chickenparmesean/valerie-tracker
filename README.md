@@ -4,7 +4,7 @@ A Hubstaff-replacement time tracker for virtual assistants. Electron desktop age
 
 ## Current Status
 
-**v0.2.8 stable -- Close Warning + Note Input (2026-03-03).**
+**v0.3.5 stable -- Enterprise Force-Install Policy (2026-03-03).**
 
 All 18 integration guide tasks complete. The Electron agent (branded "Valerie Agent" since v0.1.7) has been tested end-to-end on a real AWS WorkSpace. Agent now syncs to va-platform at staging.hirevalerie.com.
 
@@ -12,6 +12,8 @@ All 18 integration guide tasks complete. The Electron agent (branded "Valerie Ag
 - Config.json + API key auth working
 - All 5 native modules work out of the box (screenshot-desktop, x-win, powerMonitor, better-sqlite3, sharp)
 - Time tracking, activity snapshots, window samples, and screenshots all capture and sync correctly
+- Chrome extension URL tracking via localhost HTTP bridge (v0.3.0-v0.3.5)
+- Enterprise force-install policy for Chrome extension -- survives reboot, cannot be disabled by user (v0.3.5)
 - Close warning dialog when window X clicked while timer running -- prevents accidental timer stop (v0.2.8)
 - Note input wired end-to-end -- VA can add notes to time entries, synced in payload (v0.2.8)
 - Stale timer detection on resume -- auto-stops with correct durationSec after reboot/force-kill (v0.2.7)
@@ -135,7 +137,7 @@ mkdir C:\ProgramData\ValerieAgent
 # Create config.json with apiBaseUrl, apiKey, and settings
 ```
 
-2. **Install the agent** -- run "Valerie Agent Setup 0.2.8.exe" (NSIS installer, `perMachine: true` defaults to `C:\Program Files\Valerie Agent\`)
+2. **Install the agent** -- run "Valerie Agent Setup 0.3.5.exe" (NSIS installer, `perMachine: true` defaults to `C:\Program Files\Valerie Agent\`)
 
 3. **Launch** -- the agent verifies the API key, fetches config from the server, and shows projects/tasks. For debug output, launch from PowerShell:
 ```powershell
@@ -144,7 +146,22 @@ mkdir C:\ProgramData\ValerieAgent
 
 4. **Auto-launches on reboot** -- Registry Run key at `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` ensures the agent starts on Windows login
 
-### Verified Test Results (AWS WorkSpace, 2026-02-27 through 2026-03-02, v0.1.7-v0.2.5)
+### Chrome Extension (URL Tracking)
+
+A Manifest V3 Chrome extension captures the active tab URL and sends it to the agent via a localhost HTTP bridge on 127.0.0.1:19876. The agent attaches URLs to Chrome window samples in the sync payload.
+
+**Deployment:** The NSIS installer deploys the extension via Chrome enterprise force-install policy (ExtensionInstallForcelist). Files installed to `C:\ProgramData\ValerieAgent\`:
+- `valerie-url-bridge.crx` -- CRX3-format packed extension
+- `update.xml` -- gupdate manifest pointing to local CRX file
+- `chrome-extension\` -- unpacked source (for debugging)
+
+**Registry:** `HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist` -- force-installs the extension on Chrome launch. Cannot be disabled by the user. Survives WorkSpace reboots and golden image captures (all files on C: drive, all registry in HKLM).
+
+**Extension ID:** `lpdlfbkigloncemklhgcclimjfbglfkk` (derived from persistent RSA key in `agent/build/extension.pem`).
+
+**Config:** Gated behind `trackUrls` config flag (returned from `GET /api/tracker/config`).
+
+### Verified Test Results (AWS WorkSpace, 2026-02-27 through 2026-03-03, v0.1.7-v0.3.5)
 
 - Install + launch: PASSED
 - Config.json auth + Vercel API connection: PASSED
@@ -157,6 +174,8 @@ mkdir C:\ProgramData\ValerieAgent
 - Auto-launch on reboot: PASSED
 - Renderer stability: FAILED then FIXED (v0.1.5) -- white screen caused by `projects:list` IPC returning raw object + GPU cache permission errors + `Intl.Locale` bug
 - DevTools on WorkSpace: FAILED then FIXED (v0.1.5) -- `Intl.Locale` error fixed with `--lang=en-US`
+- Chrome extension URL tracking: PASSED (v0.3.0-v0.3.5) -- extension captures active tab URL, agent attaches to sync payload
+- Chrome extension force-install policy: PASSED (v0.3.5) -- survives WorkSpace reboot, persists in golden image
 - Auto-update (electron-updater): UNRELIABLE -- downloads update but does not reliably install on restart
 
 ### Golden Image Workflow
@@ -165,15 +184,17 @@ To create a golden image with the agent pre-installed for all new WorkSpaces:
 
 1. **Spin up a fresh WorkSpace** from the default Windows bundle
 2. **RDP in** and create `C:\ProgramData\ValerieAgent\config.json` with the VA's API key and Vercel URL
-3. **Download** "Valerie Agent Setup 0.2.8.exe" from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases)
-4. **Run the installer** -- `perMachine: true` defaults to `C:\Program Files\Valerie Agent\` (system volume)
-5. **Verify**: `Test-Path "C:\Program Files\Valerie Agent\Valerie Agent.exe"`
-6. **Launch agent**, verify API connection (MainScreen shows projects)
-7. **Stop agent**, optionally clear safeStorage cache for clean slate
-8. **Create Image** from WorkSpace (~45 min)
-9. **Create Custom Bundle** from captured image
+3. **Download** "Valerie Agent Setup 0.3.5.exe" from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases)
+4. **Run the installer** -- `perMachine: true` defaults to `C:\Program Files\Valerie Agent\` (system volume). Installer also deploys Chrome extension files to `C:\ProgramData\ValerieAgent\` and sets force-install policy in HKLM registry.
+5. **Verify agent**: `Test-Path "C:\Program Files\Valerie Agent\Valerie Agent.exe"`
+6. **Verify extension files**: `Test-Path "C:\ProgramData\ValerieAgent\valerie-url-bridge.crx"` and `Test-Path "C:\ProgramData\ValerieAgent\update.xml"`
+7. **Launch agent**, verify API connection (MainScreen shows projects)
+8. **Open Chrome**, verify extension is installed and active (chrome://extensions should show "Valerie URL Bridge" as force-installed)
+9. **Stop agent**, optionally clear safeStorage cache for clean slate
+10. **Create Image** from WorkSpace (~45 min)
+11. **Create Custom Bundle** from captured image
 
-The `perMachine: true` setting is critical -- the C: drive (system volume) persists in captured images, but the D: drive (user volume) does not. Previous versions installed to AppData on D: by default, which would be lost in the golden image.
+The `perMachine: true` setting is critical -- the C: drive (system volume) persists in captured images, but the D: drive (user volume) does not. All agent files (`C:\Program Files\Valerie Agent\`), extension files (`C:\ProgramData\ValerieAgent\`), and registry entries (HKLM) are on the C: drive and persist in golden images.
 
 ## Development
 
