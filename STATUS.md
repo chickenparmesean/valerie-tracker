@@ -197,7 +197,7 @@ All tests conducted on a real AWS WorkSpace. Every test passed.
 | Screenshot privacy (v0.2.2) | PASSED | Screenshots, activity, window tracking only fire when timer is running. Zero collection when stopped. |
 | Single instance (v0.2.3) | PASSED | Second instance quits immediately, focuses existing window. |
 | Page title tracking (v0.2.4) | PASSED | Chrome page titles extracted correctly. Logged on title change only. |
-| Sync to va-platform (v0.2.5) | PARTIAL | Time entries, activity snapshots, window samples sync to staging.hirevalerie.com. Screenshots blocked by presign 400. Today total blocked by missing endpoint. |
+| Sync to va-platform (v0.2.5+) | PASSED | Time entries, activity snapshots, window samples, screenshots all sync to staging.hirevalerie.com. Presign 400 resolved (field casing fix). Today total working (GET /api/tracker/time-entries endpoint built). |
 
 **Native modules on WorkSpaces: ALL PASSED** -- screenshot-desktop, @miniben90/x-win, powerMonitor.getSystemIdleTime(), better-sqlite3, sharp all work out of the box. No fallbacks needed (desktop-idle not required).
 
@@ -301,7 +301,7 @@ Updated: auth.ts (getAuthHeaders for both modes, Supabase gated behind --dev), c
 
 ## Golden Image Deployment
 
-The v0.2.0 installer uses `perMachine: true`, which defaults to `C:\Program Files\Valerie Agent\` on the system volume (C: drive). This is required for AWS WorkSpaces golden images because the D: drive (user volume) does not persist when capturing an image -- only the C: drive (system volume) does.
+The installer uses `perMachine: true`, which defaults to `C:\Program Files\Valerie Agent\` on the system volume (C: drive). This is required for AWS WorkSpaces golden images because the D: drive (user volume) does not persist when capturing an image -- only the C: drive (system volume) does.
 
 ### Full Golden Image Workflow
 
@@ -315,33 +315,37 @@ The v0.2.0 installer uses `perMachine: true`, which defaults to `C:\Program File
      "vaId": "golden-image-va"
    }'
    ```
-3. **Download the installer** from GitHub Releases (Valerie Agent Setup 0.2.0.exe)
-4. **Run the installer** -- perMachine defaults to `C:\Program Files\Valerie Agent\` (user can still change it, but the default is correct)
-5. **Verify the install location**:
+3. **Download the installer** from GitHub Releases (Valerie Agent Setup 0.3.5.exe)
+4. **Run the installer** -- perMachine defaults to `C:\Program Files\Valerie Agent\` (user can still change it, but the default is correct). Installer also deploys Chrome extension files and sets force-install policy.
+5. **Verify the install**:
    ```powershell
    Test-Path "C:\Program Files\Valerie Agent\Valerie Agent.exe"
+   Test-Path "C:\ProgramData\ValerieAgent\valerie-url-bridge.crx"
+   Test-Path "C:\ProgramData\ValerieAgent\update.xml"
    ```
 6. **Launch the agent** and verify API connection:
    ```powershell
    & "C:\Program Files\Valerie Agent\Valerie Agent.exe"
    ```
    Check that MainScreen loads with projects (not ErrorScreen).
-7. **Stop the agent** and optionally clear safeStorage cache:
+7. **Open Chrome** and verify the extension is force-installed:
+   Navigate to `chrome://extensions` -- "Valerie URL Bridge" should appear as installed by enterprise policy (cannot be disabled).
+8. **Stop the agent** and optionally clear safeStorage cache:
    ```powershell
    # Optional: clear cached credentials so each VA gets fresh auth
    Remove-Item -Force "$env:APPDATA\Valerie Agent\api-key-cache" -ErrorAction SilentlyContinue
    Remove-Item -Force "$env:APPDATA\Valerie Agent\cached-settings.json" -ErrorAction SilentlyContinue
    ```
-8. **Create Image from WorkSpace** (~45 minutes) via AWS Console or CLI
-9. **Create Custom Bundle** from the captured image
+9. **Create Image from WorkSpace** (~45 minutes) via AWS Console or CLI
+10. **Create Custom Bundle** from the captured image
 
-All WorkSpaces launched from this bundle will have the agent pre-installed on the C: drive and auto-starting via the Registry Run key. Each VA's WorkSpace needs its own `config.json` with the correct API key.
+All files persist in golden images: agent on C: drive (`C:\Program Files\Valerie Agent\`), extension files on C: drive (`C:\ProgramData\ValerieAgent\`), and force-install policy in HKLM registry. Each VA's WorkSpace needs its own `config.json` with the correct API key.
 
 ---
 
 ## Known Issues / Next Steps
 
-**Confirmed working on WorkSpaces (v0.3.3):**
+**Confirmed working on WorkSpaces (v0.3.5):**
 - All native modules: @miniben90/x-win, screenshot-desktop, better-sqlite3, sharp
 - Timer start/stop/resume with state transitions
 - Stale timer detection on resume -- auto-stops with correct durationSec when gap exceeds idle threshold (prevents inflated time entries after reboot)
@@ -353,6 +357,8 @@ All WorkSpaces launched from this bundle will have the agent pre-installed on th
 - Chrome page title extraction from window titles
 - Chrome extension URL tracking via localhost HTTP bridge (v0.3.0) -- extension POSTs active tab URL to 127.0.0.1:19876, agent attaches URL to Chrome window samples in sync payload
 - CORS headers on URL bridge (v0.3.1) -- extension fetch() no longer blocked by CORS policy
+- CRX3 packaging via chrome.exe --pack-extension (v0.3.3) -- Chrome 145 requires CRX3 format
+- Enterprise force-install policy for Chrome extension (v0.3.5) -- ExtensionInstallForcelist registry key, survives reboot, persists in golden image
 - Screenshot capture + WebP compression (73-96KB), metadata includes storageUrl/storagePath
 - Idle detection with configurable threshold
 - Local SQLite outbox -- inserts, reads, sync marking
