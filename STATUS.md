@@ -3,9 +3,9 @@
 Last updated: 2026-03-03
 Branch: staging
 
-## Overall Status: v0.3.1 Stable -- CORS, Display Name, CRX Packaging Patches
+## Overall Status: v0.3.2 Stable -- CRX Build Pipeline Fix
 
-All 6 build phases completed. All 18 integration guide tasks DONE. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12). NSIS installer built and verified (task 13). WorkSpace testing completed (tasks 14-18) -- initial tests passed but three additional renderer/DevTools issues were discovered during sustained WorkSpace use, requiring fixes through v0.1.1-v0.1.6. Two server-side sync route fixes also applied during testing (nullable taskId, timeEntryId resolution from idempotency keys). v0.1.7 rebranded the desktop app from "Valerie Tracker" to "Valerie Agent" -- updated installer name, install path, config path, window icon, and logo. v0.1.8 bundled icon.ico in extraResources for the runtime window icon. v0.2.0 fixed signAndEditExecutable to embed the icon in the .exe binary. **v0.2.0 added `perMachine: true` to the NSIS config** -- the installer now defaults to `C:\Program Files\Valerie Agent\` instead of per-user AppData. This is required for AWS WorkSpaces golden images because the D: drive (user volume) does not persist in captured images, only the C: drive (system volume) does. **Versions v0.2.1-v0.2.5** were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. **v0.2.6** fixed screenshot storageUrl/storagePath not being set on metadata before outbox insert and removed the desktop notification on screenshot capture. **v0.2.7** fixed stale timer resume after reboot (auto-stops with correct durationSec instead of including downtime) and added auto-stop on prolonged unanswered idle (configurable, default 15 minutes). **v0.2.8** added close warning dialog when window X is clicked while timer is running (native dialog with "Keep Working" / "Stop & Close" options) and wired note input end-to-end (text input on MainScreen submits note to current time entry via timer:setNote IPC, note included in sync payload -- previously always null). **v0.3.0** added Chrome extension URL tracking via localhost HTTP bridge on port 19876. A Manifest V3 Chrome extension captures the active tab URL and POSTs it to the agent. The agent includes the URL in WindowSample sync payloads. The NSIS installer bundles the extension in C:\ProgramData\ValerieAgent\chrome-extension\ and registers it via Chrome's external extension registry mechanism (HKLM\SOFTWARE\Google\Chrome\Extensions). Gated behind the trackUrls config flag. Current stable version is v0.3.1. The agent now syncs to va-platform at staging.hirevalerie.com.
+All 6 build phases completed. All 18 integration guide tasks DONE. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12). NSIS installer built and verified (task 13). WorkSpace testing completed (tasks 14-18) -- initial tests passed but three additional renderer/DevTools issues were discovered during sustained WorkSpace use, requiring fixes through v0.1.1-v0.1.6. Two server-side sync route fixes also applied during testing (nullable taskId, timeEntryId resolution from idempotency keys). v0.1.7 rebranded the desktop app from "Valerie Tracker" to "Valerie Agent" -- updated installer name, install path, config path, window icon, and logo. v0.1.8 bundled icon.ico in extraResources for the runtime window icon. v0.2.0 fixed signAndEditExecutable to embed the icon in the .exe binary. **v0.2.0 added `perMachine: true` to the NSIS config** -- the installer now defaults to `C:\Program Files\Valerie Agent\` instead of per-user AppData. This is required for AWS WorkSpaces golden images because the D: drive (user volume) does not persist in captured images, only the C: drive (system volume) does. **Versions v0.2.1-v0.2.5** were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. **v0.2.6** fixed screenshot storageUrl/storagePath not being set on metadata before outbox insert and removed the desktop notification on screenshot capture. **v0.2.7** fixed stale timer resume after reboot (auto-stops with correct durationSec instead of including downtime) and added auto-stop on prolonged unanswered idle (configurable, default 15 minutes). **v0.2.8** added close warning dialog when window X is clicked while timer is running (native dialog with "Keep Working" / "Stop & Close" options) and wired note input end-to-end (text input on MainScreen submits note to current time entry via timer:setNote IPC, note included in sync payload -- previously always null). **v0.3.0** added Chrome extension URL tracking via localhost HTTP bridge on port 19876. A Manifest V3 Chrome extension captures the active tab URL and POSTs it to the agent. The agent includes the URL in WindowSample sync payloads. The NSIS installer bundles the extension in C:\ProgramData\ValerieAgent\chrome-extension\ and registers it via Chrome's external extension registry mechanism (HKLM\SOFTWARE\Google\Chrome\Extensions). Gated behind the trackUrls config flag. **v0.3.2** fixed CRX not included in installer -- pack-extension.js now runs automatically before electron-builder in both build:agent and publish:agent scripts. Current stable version is v0.3.2. The agent now syncs to va-platform at staging.hirevalerie.com.
 
 ---
 
@@ -132,6 +132,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | CORS headers on URL bridge | v0.3.1 | Added Access-Control-Allow-Origin/Methods/Headers to all HTTP responses in url-bridge.ts. Added explicit OPTIONS preflight handler returning 204. Fixes Chrome extension fetch() being blocked by CORS policy. |
 | App display name fix | v0.3.1 | Changed package.json description from long string to "Valerie Agent". The description field was leaking into Task Manager and client UI as the app display name. productName in electron-builder.yml was already correct. |
 | CRX extension packaging | v0.3.1 | Generated persistent RSA signing key (extension.pem). Chrome extension now packed as CRX2 binary via build/pack-extension.js (Node.js crypto + PowerShell zip, no npm deps). NSIS installer copies .crx to C:\ProgramData\ValerieAgent\ and registers via Chrome external extension registry pointing to .crx file (was pointing to unpacked folder which Chrome doesn't support). Extension ID changed from pdnlbaclbmfbipieaeknjkopdcafeepf to lpdlfbkigloncemklhgcclimjfbglfkk. Old registry keys cleaned up on install and uninstall. Unpacked folder still copied for Load Unpacked debugging. |
+| CRX build pipeline fix | v0.3.2 | pack-extension.js was not wired into the build pipeline -- CRX had to be generated manually before running electron-builder, and got skipped. Fixed: build:agent and publish:agent scripts now run `node build/pack-extension.js` before electron-builder, ensuring the .crx is always generated fresh. electron-builder.yml extraResources already included both chrome-extension/ and build/valerie-url-bridge.crx; installer.nsh paths were already consistent. |
 
 ## Deployment
 
@@ -151,7 +152,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 
 | Item | Detail |
 |------|--------|
-| Installer | Valerie Agent Setup 0.3.1.exe |
+| Installer | Valerie Agent Setup 0.3.2.exe |
 | Size | ~81 MB |
 | Format | NSIS (non-silent, user chooses install dir) |
 | Architecture | Windows x64 only |
@@ -162,7 +163,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Publish command | `cd agent && npm run publish:agent` (requires `GH_TOKEN` env var with repo scope) |
 | Output dir | agent/dist/ |
 | Tested | Installs and launches on dev machine and AWS WorkSpace, all native modules load, full sync verified |
-| Note | Versions 0.1.1-0.1.5 were intermediate debug/fix builds during WorkSpace testing. v0.1.6 was the last release under the "Valerie Tracker" name. v0.1.7 rebranded to "Valerie Agent". v0.1.8 bundled icon.ico for runtime window icon. v0.1.9 fixed exe icon embedding. v0.2.0 added `perMachine: true` for C: drive install on WorkSpaces golden images. Versions v0.2.1-v0.2.5 were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. v0.2.6 fixed screenshot metadata URLs + removed screenshot notification. v0.2.7 fixed stale timer resume after reboot + added auto-stop on prolonged unanswered idle. v0.2.8 added close warning dialog on window close + note input wired to sync payload. v0.3.0 added Chrome extension URL tracking with localhost HTTP bridge and NSIS installer bundling. v0.3.1 added CORS fix on URL bridge, app display name fix, and CRX extension packaging with persistent RSA signing key. v0.3.1 is the current stable release. |
+| Note | Versions 0.1.1-0.1.5 were intermediate debug/fix builds during WorkSpace testing. v0.1.6 was the last release under the "Valerie Tracker" name. v0.1.7 rebranded to "Valerie Agent". v0.1.8 bundled icon.ico for runtime window icon. v0.1.9 fixed exe icon embedding. v0.2.0 added `perMachine: true` for C: drive install on WorkSpaces golden images. Versions v0.2.1-v0.2.5 were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. v0.2.6 fixed screenshot metadata URLs + removed screenshot notification. v0.2.7 fixed stale timer resume after reboot + added auto-stop on prolonged unanswered idle. v0.2.8 added close warning dialog on window close + note input wired to sync payload. v0.3.0 added Chrome extension URL tracking with localhost HTTP bridge and NSIS installer bundling. v0.3.1 added CORS fix on URL bridge, app display name fix, and CRX extension packaging with persistent RSA signing key. v0.3.2 fixed CRX build pipeline -- pack-extension.js now runs automatically before electron-builder. v0.3.2 is the current stable release. |
 
 ### WorkSpace Testing Results (2026-02-27)
 
@@ -337,7 +338,7 @@ All WorkSpaces launched from this bundle will have the agent pre-installed on th
 
 ## Known Issues / Next Steps
 
-**Confirmed working on WorkSpaces (v0.3.1):**
+**Confirmed working on WorkSpaces (v0.3.2):**
 - All native modules: @miniben90/x-win, screenshot-desktop, better-sqlite3, sharp
 - Timer start/stop/resume with state transitions
 - Stale timer detection on resume -- auto-stops with correct durationSec when gap exceeds idle threshold (prevents inflated time entries after reboot)
@@ -360,16 +361,17 @@ All WorkSpaces launched from this bundle will have the agent pre-installed on th
 - Today total display with API + local fallback
 
 **Blocked on va-platform (not agent bugs):**
-- Screenshots not uploading: POST /api/tracker/screenshots/presign returns 400 on va-platform. Agent-side fix in v0.2.6 now correctly populates storageUrl/storagePath on metadata before outbox insert. Presign endpoint field mismatch on va-platform side still needs fixing.
-- Today total shows fallback data: GET /api/tracker/time-entries returns 404. Endpoint not yet built on va-platform. Agent falls back to local SQLite which loses data on WorkSpace restart.
-- Page titles not visible in dashboard: Agent sends pageTitle in sync payload as of v0.2.5. Va-platform needs to add pageTitle column to WindowSample, accept it in sync Zod schema, and display in dashboard.
-- URLs not visible in dashboard: Agent sends url in sync payload as of v0.3.0. Va-platform needs to add url String? to WindowSample Prisma model, accept it in sync Zod schema, and display in dashboard.
+- URLs not visible in dashboard: Agent sends url in sync payload as of v0.3.0. Va-platform needs to add url String? to WindowSample Prisma model -- sync Zod schema silently strips it. pageTitle column also not yet added.
 
 **Va-platform integration requirements (handoff):**
-1. Fix POST /api/tracker/screenshots/presign -- accept: filename (string), contentType (string), timeEntryIdempotencyKey (string), capturedAt (ISO string), activityPct (number), activeApp (string), fileSizeBytes (number)
-2. Add pageTitle String? and url String? to WindowSample Prisma model + sync route Zod schema
-3. Build GET /api/tracker/time-entries?date=YYYY-MM-DD -- returns array of { durationSec, status, startedAt, stoppedAt } filtered by userId from API key
-4. Aggregate pageTitle data for "Top Sites" dashboard display
+1. Add url String? and pageTitle String? to WindowSample Prisma model + sync route Zod schema
+2. Aggregate pageTitle + url data for "Top Sites" dashboard display
+
+**Previously blocked, now resolved on va-platform:**
+- Screenshots presign 400 -- RESOLVED (field mismatch fixed on va-platform)
+- GET /api/tracker/time-entries 404 -- RESOLVED (endpoint built on va-platform)
+- pageTitle column on WindowSample -- RESOLVED on va-platform sync acceptance (column added)
+- trackUrls config flag -- RESOLVED (now returned from GET /api/tracker/config, shipped)
 
 **Needs WorkSpace verification (v0.3.1):**
 - Chrome extension auto-install via CRX registry: NSIS installer copies .crx to C:\ProgramData\ValerieAgent\ and writes Chrome external extension registry keys (HKLM\SOFTWARE\Google\Chrome\Extensions\lpdlfbkigloncemklhgcclimjfbglfkk). Load Unpacked from C:\ProgramData\ValerieAgent\chrome-extension\ works, but registry-based CRX auto-install is untested on WorkSpaces.

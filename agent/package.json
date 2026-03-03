@@ -1,6 +1,6 @@
 {
   "name": "valerie-agent",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Valerie Agent",
   "author": "HireValerie",
@@ -9,8 +9,8 @@
     "postinstall": "electron-rebuild",
     "dev": "concurrently \"vite\" \"tsc -p tsconfig.main.json --watch\" \"tsc -p tsconfig.preload.json --watch\" \"wait-on dist-main/index.js && cross-env NODE_ENV=development electron .\"",
     "build": "vite build && tsc -p tsconfig.main.json && tsc -p tsconfig.preload.json",
-    "build:agent": "npm run build && electron-builder --win",
-    "publish:agent": "npm run build && electron-builder --win --publish always",
+    "build:agent": "node build/pack-extension.js && npm run build && electron-builder --win",
+    "publish:agent": "node build/pack-extension.js && npm run build && electron-builder --win --publish always",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit"
   },
   "dependencies": {
