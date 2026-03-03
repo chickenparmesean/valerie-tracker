@@ -14,15 +14,15 @@
 
 | File | Tags | Description |
 |------|------|-------------|
-| `index.ts` | [AUTH] [INTEGRATION] | App entry point. Dual startup (--dev vs normal mode), GPU flags for WorkSpaces, creates window, starts all engines. |
+| `index.ts` | [AUTH] [INTEGRATION] | App entry point. Dual startup (--dev vs normal mode), GPU flags for WorkSpaces, creates window, starts all engines. Single instance lock via app.requestSingleInstanceLock() -- second instance focuses existing window instead of launching duplicate (v0.2.3). Graceful shutdown: before-quit handler calls cleanup on all engine modules -- timer, activity, window tracker, screenshot, idle detector, sync, auto-updater, tray (v0.2.3). |
 | `config.ts` | [AUTH] [INTEGRATION] | Global config constants (intervals, paths, URLs). `isDevMode` flag. Dynamic `apiBaseUrl` getter/setter. DB path migration from old "Valerie Tracker" name. |
 | `tracker-config.ts` | [AUTH] [INTEGRATION] | Reads config.json from ProgramData, safeStorage caching, pings server to validate API key, fetches + merges server config, offline fallback. Core auth module for production mode. |
 | `auth.ts` | [AUTH] [INTEGRATION] | `getAuthHeaders()` -- returns Bearer token for API calls. Dev mode: Supabase JWT. Normal mode: API key from tracker-config. Also handles Supabase signIn/signOut/restoreSession (dev-only). |
 | `database.ts` | [DATA] [SYNC] | SQLite via better-sqlite3. Creates 3 tables (sync_outbox, screenshot_queue, active_time_entry). CRUD for outbox items, screenshots, and timer persistence. |
 | `timer.ts` | [DATA] [TASK] | Timer state machine (start/stop/resume). Generates idempotency keys. Tracks elapsed/active/idle seconds. Queues time entries for sync. Persists to SQLite for crash recovery. |
-| `activity.ts` | [DATA] | Activity detection via powerMonitor.getSystemIdleTime(). 1s polling, 60s snapshot aggregation. Feeds activityPct to timer and sync outbox. |
-| `window-tracker.ts` | [DATA] | Foreground app tracking via @miniben90/x-win. 3s polling, heartbeat pattern (extends duration for same app). 60s flush to sync outbox. |
-| `screenshot.ts` | [DATA] | Screenshot capture via screenshot-desktop + sharp WebP compression. Randomized within 10-min windows. Saves locally, queues for upload. Desktop notification on capture. |
+| `activity.ts` | [DATA] | Activity detection via powerMonitor.getSystemIdleTime(). 1s polling, 60s snapshot aggregation. Feeds activityPct to timer and sync outbox. Data collection gated behind timer running state -- skips polls with "[Activity] Skipping -- timer not running" log when timer is not running (v0.2.2). |
+| `window-tracker.ts` | [DATA] | Foreground app tracking via @miniben90/x-win. 3s polling, heartbeat pattern (extends duration for same app). 60s flush to sync outbox. Chrome page title extraction: strips " - Google Chrome" suffix from window titles to derive pageTitle field sent in sync payload alongside appName and windowTitle (v0.2.4). Timer-gated -- skips polls when timer not running (v0.2.2). |
+| `screenshot.ts` | [DATA] | Screenshot capture via screenshot-desktop + sharp WebP compression. Randomized within 10-min windows. Saves locally, queues for upload. Desktop notification on capture. Capture only occurs while timer is running -- skips with log when timer stopped (v0.2.2). |
 | `idle-detector.ts` | [DATA] [UI] | Idle detection via powerMonitor. 30s polling + lock-screen event. Shows idle prompt dialog to renderer when threshold exceeded. |
 | `sync.ts` | [SYNC] [INTEGRATION] | Sync engine. Runs every 60s. Batches unsynced items from SQLite, POSTs to /api/tracker/sync. Uploads screenshots via presigned URLs. Marks items as synced. |
 | `tray.ts` | [UI] | System tray icon (green/gray), tooltip with elapsed time, context menu (status, start/stop, open, update check, quit). |
@@ -43,7 +43,7 @@
 | `App.tsx` | [UI] | Root component. Screen routing (loading/login/main/error). Listens for config:ready, config:error, idle:prompt events. |
 | `main.tsx` | [UI] | React DOM render entry point. |
 | `index.html` | [UI] | HTML shell for renderer. |
-| `screens/MainScreen.tsx` | [UI] [TASK] | Primary UI. Project/task list with play buttons, inline task creation, timer display (HH:MM:SS), stop button, note input, today total. |
+| `screens/MainScreen.tsx` | [UI] [TASK] | Primary UI. Project/task list with play buttons, inline task creation, timer display (HH:MM:SS), stop button, note input. Today total display ("Today: Xh Xm") near footer, polls every 30s via time:getTodayTotal IPC, refreshes on timer start/stop, falls back to local SQLite sum if API returns 404 (v0.2.4). Project refresh button in header (v0.2.2). Status text shows "Working -- [task]" when tracking, "Not tracking" when idle. Fonts: DM Sans for body text, DM Mono for timer display. |
 | `screens/ErrorScreen.tsx` | [UI] [AUTH] | Error states: "not-configured" and "key-invalid". Retry button. |
 | `screens/IdleDialog.tsx` | [UI] | Modal: "You've been idle for X minutes" with keep/discard-resume/discard-stop options. |
 | `screens/LoginScreen.tsx` | [UI] [AUTH] | Email/password login form. Dev mode only (--dev flag). Not shown in production. |
@@ -93,7 +93,7 @@
 | `index.ts` | [INTEGRATION] | Re-exports all types and enums. |
 | `enums.ts` | [INTEGRATION] | UserRole, ProjectStatus, TaskStatus, TimeEntryStatus, MembershipStatus enums. |
 | `types.ts` | [INTEGRATION] | ApiError, ProjectWithTasks, TaskSummary, LiveDashboardEntry, PresignResponse interfaces. |
-| `sync-payload.ts` | [SYNC] [INTEGRATION] | SyncPayload, SyncTimeEntry, SyncActivitySnapshot, SyncWindowSample, SyncScreenshotMeta, SyncResponse interfaces. Defines the exact shape of data between agent and API. |
+| `sync-payload.ts` | [SYNC] [INTEGRATION] | SyncPayload, SyncTimeEntry, SyncActivitySnapshot, SyncWindowSample, SyncScreenshotMeta, SyncResponse interfaces. Defines the exact shape of data between agent and API. SyncWindowSample includes pageTitle field (string | null) for Chrome page titles (v0.2.5). |
 
 ## prisma/ -- Database Schema
 
@@ -117,7 +117,8 @@
 | `SCHEMA.prisma` | | Reference copy of schema. |
 | `package.json` | | Root workspace config (npm workspaces: web, agent, shared, prisma). |
 | `agent/electron-builder.yml` | [INTEGRATION] | NSIS installer config. perMachine: true, asarUnpack for native modules, GitHub Releases publish. |
-| `agent/package.json` | | Agent workspace: scripts (dev, build, publish), dependencies, version 0.2.0. |
+| `agent/resources/icon.ico` | [UI] | Custom woman silhouette logo (256x256). Embedded in .exe via rcedit. Also bundled as extraResource for runtime BrowserWindow icon. Updated v0.1.7. |
+| `agent/package.json` | | Agent workspace: scripts (dev, build, publish), dependencies, version 0.2.5. |
 
 ---
 

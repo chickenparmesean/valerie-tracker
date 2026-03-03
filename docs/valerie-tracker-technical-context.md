@@ -1,7 +1,7 @@
 # Valerie Tracker -- Technical Context
 
 > Comprehensive reference for anyone (human or AI) integrating the Valerie Agent into va-platform.
-> Based on actual source code as of v0.2.0, branch: staging.
+> Based on actual source code as of v0.2.5, branch: staging.
 
 ---
 
@@ -15,11 +15,20 @@ Valerie Agent is an Electron 34 desktop app with three process types:
 - **Renderer process** (`agent/src/renderer/App.tsx`) -- Chromium-based React UI. 4 screens: Loading, LoginScreen (dev-only), MainScreen, ErrorScreen. Plus IdleDialog overlay.
 - **Preload process** (`agent/src/preload/index.ts`) -- Bridge between main and renderer via `contextBridge.exposeInMainWorld('electronAPI', ...)`. Enforces `contextIsolation: true` and `nodeIntegration: false`.
 
+### Single Instance Lock (v0.2.3)
+
+Before `app.whenReady()`, the agent calls `app.requestSingleInstanceLock()`. If another instance is already running, the new instance quits immediately. The existing instance receives a `second-instance` event and focuses/restores its main window. This prevents duplicate agents from running simultaneously.
+
+### Graceful Shutdown (v0.2.3)
+
+The `before-quit` event handler calls cleanup/stop on all engine modules: activity detection, window tracking, screenshot schedule, idle detection, sync engine, auto-updater, and tray. This ensures timers are flushed, pending data is saved, and resources are released on quit.
+
 ### Startup Sequence
 
 1. Load `.env` via dotenv (tries 3 paths)
 2. Disable GPU acceleration (`app.disableHardwareAcceleration()` + 5 Chromium flags -- required for AWS WorkSpaces)
-3. `app.whenReady()` fires
+3. Request single instance lock -- if another instance is running, focus it and quit (v0.2.3)
+4. `app.whenReady()` fires
 4. Initialize SQLite database (`initDatabase()`)
 5. **Normal mode** (no `--dev` flag):
    - `initAuth()` (no-op in normal mode)
@@ -77,6 +86,8 @@ All renderer-to-main communication goes through the preload bridge. Channels:
 ---
 
 ## 2. Data Collection
+
+> **Timer-gated collection (v0.2.2):** As of v0.2.2, all data collection (activity polling, window tracking, screenshot capture) is gated behind the timer running state. When the timer is not running, engines skip their poll cycles. This prevents any data capture when the VA is not actively tracking time.
 
 ### TimeEntry
 
@@ -155,11 +166,13 @@ All renderer-to-main communication goes through the preload bridge. Channels:
     appName: string;          // e.g. "Google Chrome"
     windowTitle: string;      // e.g. "GitHub - Google Chrome"
     processPath: string;      // e.g. "chrome.exe"
+    pageTitle: string | null; // extracted Chrome page title (e.g. "GitHub") or null for non-Chrome apps
     durationSec: number;      // how long this app was in foreground
     timeEntryId: string;      // parent TimeEntry's idempotencyKey
   }
   ```
 - **Logic**: Uses heartbeat pattern via `@miniben90/x-win`. Every 3s, gets active window. If same app as current, extends `durationSec`. If different app, finalizes previous window sample (adds to pending list), starts new one. Every 60s, flushes all pending samples to sync queue. On engine stop, flushes remaining samples.
+- **Page title extraction (v0.2.4)**: For Chrome windows, the agent strips the " - Google Chrome" suffix from the window title to extract the page title (e.g. "Gmail - Inbox - Google Chrome" becomes "Gmail - Inbox"). This is sent as the `pageTitle` field in the sync payload. Full URL extraction is not implemented -- only the page title visible in the title bar is captured. The `trackUrls` config option exists but has no effect beyond this page title extraction.
 
 ---
 
@@ -314,11 +327,14 @@ CREATE TABLE active_time_entry (
 - **Headers**: `Content-Type: image/webp`
 - **Body**: Raw WebP file buffer
 
-#### 8. `GET /api/time-entries?date={yyyy-MM-dd}`
+#### 8. `GET /api/tracker/time-entries?date={yyyy-MM-dd}`
 
 - **When**: MainScreen polls today's total every 30 seconds
 - **Headers**: `Authorization: Bearer vt_...`
-- **Response 200**: Array of time entry objects
+- **Response 200**: Array of time entry objects with `durationSec` field. Agent sums all `durationSec` values and adds elapsed seconds for any currently RUNNING entry.
+- **Response 404**: Endpoint not yet built on va-platform. Agent falls back to summing local SQLite time entries from the sync outbox.
+
+> **Note**: The agent calls `GET /api/tracker/time-entries?date=YYYY-MM-DD` to display today's total tracked time. This endpoint currently returns 404 on va-platform (not yet built). The agent falls back to summing local SQLite time entries when this happens.
 
 ---
 
@@ -331,7 +347,7 @@ CREATE TABLE active_time_entry (
 
 ```json
 {
-  "apiBaseUrl": "https://valerie-tracker-web.vercel.app",
+  "apiBaseUrl": "https://staging.hirevalerie.com",
   "apiKey": "vt_a1b2c3d4e5f6...",
   "vaId": "test-va-001",
   "screenshotFreq": 1,
@@ -344,7 +360,7 @@ CREATE TABLE active_time_entry (
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| apiBaseUrl | string | Yes | -- | URL of the API server |
+| apiBaseUrl | string | Yes | -- | URL of the API server. The standalone test API at valerie-tracker-web.vercel.app is retired. The agent now syncs to va-platform at staging.hirevalerie.com. |
 | apiKey | string | Yes | -- | Must start with `vt_`, maps to `trackerApiKey` on User model |
 | vaId | string | No | `''` | Informational VA identifier |
 | screenshotFreq | number | No | 1 | Screenshots per 10-min interval |
@@ -471,11 +487,12 @@ The server returns org-level settings via `GET /api/tracker/config`. These overr
 **LoginScreen** (`agent/src/renderer/screens/LoginScreen.tsx`) -- Email/password form for Supabase Auth. Only shown in `--dev` mode. Not part of normal production flow.
 
 **MainScreen** (`agent/src/renderer/screens/MainScreen.tsx`):
-- Header: Valerie Agent logo + brand name (dark nav bar `#1A1A2E`)
+- Header: Valerie Agent logo + brand name (dark nav bar `#1A1A2E`), project refresh button (v0.2.2)
 - Project list: expandable projects with nested tasks, play buttons, inline task creation
-- Timer section: status dot (green/gray), current project/task name, `HH : MM : SS` display, STOP button
+- Timer section: status dot (green/gray), status text ("Working -- [task]" or "Not tracking"), `HH : MM : SS` display, STOP button
 - Note input: text field for adding notes (visible when timer is running)
-- Today total: "Today: Xh Xm" footer (polls API every 30s)
+- Today total display: "Today: Xh Xm" footer, polls every 30s via time:getTodayTotal IPC, refreshes on timer start/stop, falls back to local SQLite sum if API returns 404 (v0.2.4)
+- Fonts: DM Sans (body text), DM Mono (timer display)
 
 **ErrorScreen** (`agent/src/renderer/screens/ErrorScreen.tsx`):
 - Two states: "Tracker not configured" (no config.json) and "API key is invalid or revoked"
@@ -527,7 +544,7 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 
 ## 10. Known Limitations
 
-1. **Auto-update unreliable** -- electron-updater detects and downloads updates from GitHub Releases, but NSIS install-on-restart does not consistently work. Current deployment method: download latest installer from GitHub Releases and run manually (overwrites previous install).
+1. **Auto-update unreliable** -- electron-updater detects and downloads updates from GitHub Releases, but NSIS install-on-restart does not consistently work. Current deployment method: download latest installer (Valerie Agent Setup 0.2.5.exe) from GitHub Releases and run manually (overwrites previous install).
 
 2. **No code signing** -- `sign: false` in electron-builder.yml. `signAndEditExecutable: true` allows rcedit to embed the icon in the .exe without signing. SmartScreen may warn on untrusted machines, but this is not an issue for managed AWS WorkSpaces.
 
@@ -549,6 +566,19 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 7. **No disk space guard** -- No logic to reduce screenshot quality or frequency when local storage is low.
 
 8. **activeTitle not populated** -- WindowSample's `activeTitle` field in screenshot metadata is always empty string (`''`).
+
+9. **No full URL extraction** -- Page title extraction is implemented for Chrome (strips " - Google Chrome" suffix, v0.2.4), but full URL capture is not. The `trackUrls` config option has no effect beyond this page title extraction.
+
+10. **Debug logging in all engine modules** -- Console.log statements present in all engine modules (activity, window tracker, screenshot, sync, timer, IPC). Should be gated behind a `--verbose` flag before production release.
+
+### Implemented Since v0.2.0
+
+- **Single instance lock (v0.2.3)** -- `app.requestSingleInstanceLock()` prevents duplicate agent windows.
+- **Graceful shutdown (v0.2.3)** -- `before-quit` handler stops all engines cleanly.
+- **Timer-gated data collection (v0.2.2)** -- Activity, window tracking, and screenshots only run while timer is active.
+- **Chrome page title extraction (v0.2.4)** -- `pageTitle` field derived from Chrome window titles.
+- **Today total display (v0.2.4)** -- MainScreen shows cumulative tracked time for the day.
+- **Project refresh button (v0.2.2)** -- Manual refresh in header.
 
 ---
 
@@ -589,6 +619,7 @@ All routes require `Authorization: Bearer vt_...` header. Auth middleware: `web/
 | POST | `/api/tracker/projects` | Create project. Body: `{ name, description?, requireTask?, color? }`. Response 201. |
 | POST | `/api/tracker/projects/[id]/tasks` | Create task. Body: `{ title, description? }`. Auto-increments sortOrder. Response 201. |
 | PATCH | `/api/tasks/[id]` | Update task. Body: `{ title?, status?, description? }`. Verifies org ownership. |
+| GET | `/api/tracker/time-entries` | Fetch today's time entries for total display. Params: `date` (YYYY-MM-DD). Called every 30s while MainScreen is mounted. Currently returns 404 on va-platform (not yet built); agent falls back to local SQLite. |
 
 ---
 
@@ -811,6 +842,7 @@ model WindowSample {
   timestamp     DateTime
   appName       String
   windowTitle   String?
+  pageTitle     String?
   processPath   String?
   durationSec   Int
   idempotencyKey String   @unique
