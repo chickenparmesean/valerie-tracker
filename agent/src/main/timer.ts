@@ -5,7 +5,9 @@ import {
   saveActiveTimeEntry,
   getActiveTimeEntry,
   clearActiveTimeEntry,
+  updateActiveTimeEntryTick,
 } from './database';
+import { getTrackerSettings } from './tracker-config';
 
 export interface TimerState {
   isRunning: boolean;
@@ -78,14 +80,18 @@ export function startTimer(projectId: string, taskId?: string): void {
 
   tickCount = 0;
 
+  // Persist initial tick timestamp
+  updateActiveTimeEntryTick();
+
   // Start tick
   tickInterval = setInterval(() => {
     if (!state.isRunning || !state.startedAt) return;
     state.elapsedSec = Math.floor((Date.now() - state.startedAt.getTime()) / 1000);
     tickCount++;
-    // Log every 60th tick (once per minute)
+    // Log and persist tick every 60th tick (once per minute)
     if (tickCount % 60 === 0) {
       console.log('[Timer] Running — elapsed:', state.elapsedSec, 's, activeSec:', state.activeSec, 'idleSec:', state.idleSec);
+      updateActiveTimeEntryTick();
     }
     emitTimerUpdate();
   }, 1000);
@@ -147,7 +153,52 @@ export function resumeTimer(): void {
   }
 
   const startedAt = new Date(saved.started_at);
-  console.log('[Timer] Resuming timer — projectId:', saved.project_id, 'taskId:', saved.task_id, 'startedAt:', saved.started_at);
+
+  // Determine last known activity time: last_tick_at if available, otherwise startedAt
+  const lastKnownTime = saved.last_tick_at
+    ? new Date(saved.last_tick_at)
+    : startedAt;
+  const gapMs = Date.now() - lastKnownTime.getTime();
+  const gapSec = Math.floor(gapMs / 1000);
+
+  // Get idle timeout from config (default 5 minutes)
+  const settings = getTrackerSettings();
+  const thresholdSec = (settings?.idleTimeoutMin ?? 5) * 60;
+
+  if (gapSec > thresholdSec) {
+    // Stale timer — auto-stop at last known activity time, don't include the gap
+    const durationSec = Math.floor((lastKnownTime.getTime() - startedAt.getTime()) / 1000);
+    console.log(
+      `[Timer] Stale timer detected — gap of ${gapSec}s exceeds threshold of ${thresholdSec}s. Auto-stopping.`
+    );
+    console.log(
+      `[Timer] Auto-stop: startedAt=${saved.started_at}, lastActivity=${lastKnownTime.toISOString()}, durationSec=${durationSec}`
+    );
+
+    // Queue a STOPPED sync entry with the actual work duration (not including gap)
+    queueForSync(
+      'time_entry',
+      {
+        idempotencyKey: saved.idempotency_key,
+        startedAt: saved.started_at,
+        stoppedAt: lastKnownTime.toISOString(),
+        durationSec,
+        activeSec: 0,
+        idleSec: 0,
+        activityPct: 0,
+        status: 'STOPPED',
+        projectId: saved.project_id,
+        taskId: saved.task_id,
+      },
+      saved.idempotency_key
+    );
+
+    clearActiveTimeEntry();
+    mainWindow?.webContents.send('timer:stopped');
+    return;
+  }
+
+  console.log('[Timer] Resuming timer — projectId:', saved.project_id, 'taskId:', saved.task_id, 'startedAt:', saved.started_at, 'gap:', gapSec, 's');
 
   state = {
     isRunning: true,
@@ -164,12 +215,16 @@ export function resumeTimer(): void {
 
   tickCount = 0;
 
+  // Persist tick timestamp on resume
+  updateActiveTimeEntryTick();
+
   tickInterval = setInterval(() => {
     if (!state.isRunning || !state.startedAt) return;
     state.elapsedSec = Math.floor((Date.now() - state.startedAt.getTime()) / 1000);
     tickCount++;
     if (tickCount % 60 === 0) {
       console.log('[Timer] Running — elapsed:', state.elapsedSec, 's, activeSec:', state.activeSec, 'idleSec:', state.idleSec);
+      updateActiveTimeEntryTick();
     }
     emitTimerUpdate();
   }, 1000);

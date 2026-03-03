@@ -3,9 +3,9 @@
 Last updated: 2026-03-02
 Branch: staging
 
-## Overall Status: v0.2.5 Stable -- Debug Logging + Privacy Fix + Single Instance + Page Title Tracking
+## Overall Status: v0.2.7 Stable -- Stale Timer Fix + Auto-Stop on Prolonged Idle
 
-All 6 build phases completed. All 18 integration guide tasks DONE. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12). NSIS installer built and verified (task 13). WorkSpace testing completed (tasks 14-18) -- initial tests passed but three additional renderer/DevTools issues were discovered during sustained WorkSpace use, requiring fixes through v0.1.1-v0.1.6. Two server-side sync route fixes also applied during testing (nullable taskId, timeEntryId resolution from idempotency keys). v0.1.7 rebranded the desktop app from "Valerie Tracker" to "Valerie Agent" -- updated installer name, install path, config path, window icon, and logo. v0.1.8 bundled icon.ico in extraResources for the runtime window icon. v0.2.0 fixed signAndEditExecutable to embed the icon in the .exe binary. **v0.2.0 added `perMachine: true` to the NSIS config** -- the installer now defaults to `C:\Program Files\Valerie Agent\` instead of per-user AppData. This is required for AWS WorkSpaces golden images because the D: drive (user volume) does not persist in captured images, only the C: drive (system volume) does. **Versions v0.2.1-v0.2.5** were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. Current stable version is v0.2.5, published to GitHub Releases. The agent now syncs to va-platform at staging.hirevalerie.com.
+All 6 build phases completed. All 18 integration guide tasks DONE. Agent auth swapped from Supabase Auth to API key + config.json (tasks 1-12). NSIS installer built and verified (task 13). WorkSpace testing completed (tasks 14-18) -- initial tests passed but three additional renderer/DevTools issues were discovered during sustained WorkSpace use, requiring fixes through v0.1.1-v0.1.6. Two server-side sync route fixes also applied during testing (nullable taskId, timeEntryId resolution from idempotency keys). v0.1.7 rebranded the desktop app from "Valerie Tracker" to "Valerie Agent" -- updated installer name, install path, config path, window icon, and logo. v0.1.8 bundled icon.ico in extraResources for the runtime window icon. v0.2.0 fixed signAndEditExecutable to embed the icon in the .exe binary. **v0.2.0 added `perMachine: true` to the NSIS config** -- the installer now defaults to `C:\Program Files\Valerie Agent\` instead of per-user AppData. This is required for AWS WorkSpaces golden images because the D: drive (user volume) does not persist in captured images, only the C: drive (system volume) does. **Versions v0.2.1-v0.2.5** were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. **v0.2.6** fixed screenshot storageUrl/storagePath not being set on metadata before outbox insert and removed the desktop notification on screenshot capture. **v0.2.7** fixed stale timer resume after reboot (auto-stops with correct durationSec instead of including downtime) and added auto-stop on prolonged unanswered idle (configurable, default 15 minutes). Current stable version is v0.2.7, published to GitHub Releases. The agent now syncs to va-platform at staging.hirevalerie.com.
 
 ---
 
@@ -121,6 +121,10 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | pageTitle in sync payload | v0.2.5 | sync.ts now includes pageTitle field when building window sample POST body. shared/src/sync-payload.ts updated with pageTitle type. |
 | Page title log throttle | v0.2.5 | Chrome page title log only fires on title change, not every 3s poll. Reduces log spam from ~20/min to ~1 per page navigation. |
 | time:getTodayTotal path fix | v0.2.5 | Changed API call from /api/time-entries to /api/tracker/time-entries to match va-platform route prefix convention. |
+| Screenshot metadata fix | v0.2.6 | Fixed storageUrl and storagePath not being set on screenshot metadata before outbox insert (sync.ts). After presign response and PUT upload, URLs are now written to the metadata object BEFORE the queueForSync call. |
+| Screenshot notification removed | v0.2.6 | Removed desktop notification on screenshot capture (screenshot.ts). No notification now shows to the VA when a screenshot is taken. |
+| Stale timer auto-stop on resume | v0.2.7 | On resumeTimer(), if the gap between now and last known activity (last_tick_at) exceeds the idle threshold, the timer auto-stops with durationSec reflecting actual work time (not including reboot gap). Prevents wildly inflated time entries after WorkSpace reboots or force-kills. Added last_tick_at column to active_time_entry SQLite table, updated every 60s while timer runs. |
+| Auto-stop on prolonged unanswered idle | v0.2.7 | When the idle prompt dialog goes unanswered for 15 minutes (configurable via autoStopIdleMin), the timer auto-stops and idle time is discarded. Prevents 12-hour phantom sessions when a VA closes their WorkSpace without stopping the timer. |
 
 ## Deployment
 
@@ -140,7 +144,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 
 | Item | Detail |
 |------|--------|
-| Installer | Valerie Agent Setup 0.2.5.exe |
+| Installer | Valerie Agent Setup 0.2.7.exe |
 | Size | ~81 MB |
 | Format | NSIS (non-silent, user chooses install dir) |
 | Architecture | Windows x64 only |
@@ -151,7 +155,7 @@ Dashboard UI stripped from web/ -- production dashboard lives in va-platform rep
 | Publish command | `cd agent && npm run publish:agent` (requires `GH_TOKEN` env var with repo scope) |
 | Output dir | agent/dist/ |
 | Tested | Installs and launches on dev machine and AWS WorkSpace, all native modules load, full sync verified |
-| Note | Versions 0.1.1-0.1.5 were intermediate debug/fix builds during WorkSpace testing. v0.1.6 was the last release under the "Valerie Tracker" name. v0.1.7 rebranded to "Valerie Agent". v0.1.8 bundled icon.ico for runtime window icon. v0.1.9 fixed exe icon embedding. v0.2.0 added `perMachine: true` for C: drive install on WorkSpaces golden images. Versions v0.2.1-v0.2.5 were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. v0.2.5 is the current stable release. |
+| Note | Versions 0.1.1-0.1.5 were intermediate debug/fix builds during WorkSpace testing. v0.1.6 was the last release under the "Valerie Tracker" name. v0.1.7 rebranded to "Valerie Agent". v0.1.8 bundled icon.ico for runtime window icon. v0.1.9 fixed exe icon embedding. v0.2.0 added `perMachine: true` for C: drive install on WorkSpaces golden images. Versions v0.2.1-v0.2.5 were shipped during WorkSpace debugging and feature iteration. v0.2.1 added debug logging, v0.2.2 fixed screenshot privacy + added refresh button, v0.2.3 added single instance lock + graceful shutdown, v0.2.4 added Chrome page title tracking + today total display, v0.2.5 fixed sync payload and API paths. v0.2.6 fixed screenshot metadata URLs + removed screenshot notification. v0.2.7 fixed stale timer resume after reboot + added auto-stop on prolonged unanswered idle. v0.2.7 is the current stable release. |
 
 ### WorkSpace Testing Results (2026-02-27)
 
@@ -324,13 +328,15 @@ All WorkSpaces launched from this bundle will have the agent pre-installed on th
 
 ## Known Issues / Next Steps
 
-**Confirmed working on WorkSpaces (v0.2.5):**
+**Confirmed working on WorkSpaces (v0.2.7):**
 - All native modules: @miniben90/x-win, screenshot-desktop, better-sqlite3, sharp
 - Timer start/stop/resume with state transitions
+- Stale timer detection on resume -- auto-stops with correct durationSec when gap exceeds idle threshold (prevents inflated time entries after reboot)
+- Auto-stop on prolonged unanswered idle -- if idle prompt goes unanswered for 15 min (configurable), timer auto-stops
 - Activity detection via powerMonitor.getSystemIdleTime() -- 1s polling, 60s snapshots
 - Window tracking via x-win -- 3s polling, heartbeat/pulse aggregation, app switch detection
 - Chrome page title extraction from window titles
-- Screenshot capture + WebP compression (73-96KB)
+- Screenshot capture + WebP compression (73-96KB), metadata includes storageUrl/storagePath
 - Idle detection with configurable threshold
 - Local SQLite outbox -- inserts, reads, sync marking
 - Sync engine -- 60s cycles, batched POST, retry on failure
@@ -341,7 +347,7 @@ All WorkSpaces launched from this bundle will have the agent pre-installed on th
 - Today total display with API + local fallback
 
 **Blocked on va-platform (not agent bugs):**
-- Screenshots not uploading: POST /api/tracker/screenshots/presign returns 400. Agent capture + compression works. Presign endpoint field mismatch on va-platform side.
+- Screenshots not uploading: POST /api/tracker/screenshots/presign returns 400 on va-platform. Agent-side fix in v0.2.6 now correctly populates storageUrl/storagePath on metadata before outbox insert. Presign endpoint field mismatch on va-platform side still needs fixing.
 - Today total shows fallback data: GET /api/tracker/time-entries returns 404. Endpoint not yet built on va-platform. Agent falls back to local SQLite which loses data on WorkSpace restart.
 - Page titles not visible in dashboard: Agent sends pageTitle in sync payload as of v0.2.5. Va-platform needs to add pageTitle column to WindowSample, accept it in sync Zod schema, and display in dashboard.
 

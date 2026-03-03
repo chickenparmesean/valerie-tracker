@@ -34,9 +34,17 @@ export function initDatabase(): void {
       project_id TEXT NOT NULL,
       task_id TEXT,
       started_at TEXT NOT NULL,
-      status TEXT DEFAULT 'RUNNING'
+      status TEXT DEFAULT 'RUNNING',
+      last_tick_at TEXT
     );
   `);
+
+  // Migration: add last_tick_at column if missing (existing installs)
+  try {
+    db.exec(`ALTER TABLE active_time_entry ADD COLUMN last_tick_at TEXT`);
+  } catch {
+    // Column already exists — ignore
+  }
 }
 
 export function getDb(): Database.Database {
@@ -139,6 +147,7 @@ export function getActiveTimeEntry(): {
   task_id: string | null;
   started_at: string;
   status: string;
+  last_tick_at: string | null;
 } | undefined {
   const stmt = db.prepare('SELECT * FROM active_time_entry WHERE id = 1');
   return stmt.get() as {
@@ -147,7 +156,12 @@ export function getActiveTimeEntry(): {
     task_id: string | null;
     started_at: string;
     status: string;
+    last_tick_at: string | null;
   } | undefined;
+}
+
+export function updateActiveTimeEntryTick(): void {
+  db.prepare('UPDATE active_time_entry SET last_tick_at = ? WHERE id = 1').run(new Date().toISOString());
 }
 
 export function clearActiveTimeEntry(): void {

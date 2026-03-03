@@ -320,7 +320,7 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 15 | Fix any native module / compatibility issues found during testing | DONE (2026-02-27) |
 | 16 | Verify screenshot capture + upload end-to-end | DONE (2026-02-27) |
 | 17 | Verify sync engine end-to-end | DONE (2026-02-27) |
-| 18 | Package final working installer ready for golden image | DONE (2026-02-27, updated 2026-03-01) -- v0.2.0 is the current stable installer. Rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9. v0.2.0 added `perMachine: true` for C: drive install on golden images. Versions 0.1.1-0.1.5 were intermediate debug/fix builds. |
+| 18 | Package final working installer ready for golden image | DONE (2026-02-27, updated 2026-03-02) -- v0.2.7 is the current stable installer. Rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9. v0.2.0 added `perMachine: true` for C: drive install on golden images. v0.2.6 fixed screenshot metadata, removed capture notification. v0.2.7 fixed stale timer resume + auto-stop on prolonged idle. |
 
 ### Agent Auth Swap -- COMPLETE (tasks 4, 9-11)
 
@@ -407,9 +407,14 @@ All 18 integration guide tasks are DONE. The Electron desktop agent has been tes
 
 ---
 
-## Current Integration Status (v0.2.5)
+## Current Integration Status (v0.2.7)
 
 The agent now syncs to va-platform at staging.hirevalerie.com (previously used standalone API at valerie-tracker-web.vercel.app).
+
+### Agent-side fixes since v0.2.5
+
+- **v0.2.6:** Screenshot metadata now correctly includes `storageUrl` and `storagePath` in the sync payload. Previously these fields were not set before the outbox insert, resulting in null values being synced even when the presigned URL upload succeeded. Desktop notification on screenshot capture has been removed (screenshots are now captured silently).
+- **v0.2.7:** Stale timer detection on resume -- if the gap between now and the last known activity exceeds the idle threshold, the timer auto-stops with `durationSec` reflecting actual work time (not including reboot/downtime gap). Also added auto-stop on prolonged unanswered idle (configurable via `autoStopIdleMin`, default 15 minutes) to prevent phantom sessions.
 
 ### Working sync routes on va-platform
 
@@ -423,11 +428,11 @@ The agent now syncs to va-platform at staging.hirevalerie.com (previously used s
 
 | Route | Method | Issue |
 |-------|--------|-------|
-| /api/tracker/screenshots/presign | POST | Returns 400 -- field mismatch in Zod schema |
+| /api/tracker/screenshots/presign | POST | Returns 400 -- field mismatch in Zod schema. Agent-side metadata fix applied in v0.2.6 (storageUrl/storagePath now populated). Va-platform Zod schema still needs updating. |
 | /api/tracker/time-entries | GET | Returns 404 -- endpoint not built yet |
 | pageTitle field | -- | Not yet accepted in sync Zod schema or stored in WindowSample table |
 
-### Agent sync payload shape (v0.2.5)
+### Agent sync payload shape (v0.2.7)
 
 ```json
 {

@@ -2,7 +2,7 @@
 
 ## Implementation Notes (2026-02-27)
 
-All recommended packages were used and work correctly on AWS WorkSpaces. Testing was conducted on a real AWS WorkSpace. Current stable version is v0.2.5. Versions v0.2.1-v0.2.5 added debug logging, screenshot privacy gating, single instance lock, graceful shutdown, Chrome page title tracking, project refresh button, and today total display. Agent now syncs to va-platform at staging.hirevalerie.com.
+All recommended packages were used and work correctly on AWS WorkSpaces. Testing was conducted on a real AWS WorkSpace. Current stable version is v0.2.7. Versions v0.2.1-v0.2.5 added debug logging, screenshot privacy gating, single instance lock, graceful shutdown, Chrome page title tracking, project refresh button, and today total display. v0.2.6 fixed screenshot metadata URLs and removed screenshot notification. v0.2.7 fixed stale timer resume after reboot and added auto-stop on prolonged unanswered idle. Agent now syncs to va-platform at staging.hirevalerie.com.
 
 ### Package Performance on AWS WorkSpaces
 
@@ -85,6 +85,10 @@ This exactly replicates Hubstaff's activity calculation: **"For every second, we
 ### Idle detection and the idle prompt
 
 Combine `powerMonitor.getSystemIdleTime()` with `powerMonitor.on('lock-screen')` to detect both input-idle and screen-lock states. Poll every 30 seconds; when idle time exceeds the configured threshold (default **5 minutes**, matching Hubstaff), pause the timer and show a dialog with three options: "Keep Time & Continue," "Discard Time & Continue," or "Discard & Stop." This mirrors Hubstaff's idle handling precisely.
+
+**Auto-stop on prolonged unanswered idle (v0.2.7):** If the idle prompt goes unanswered for a configurable timeout (default 15 minutes, `autoStopIdleMin` in config), the timer auto-stops and idle time is discarded. This prevents 12-hour phantom sessions when a VA closes their WorkSpace without stopping the timer.
+
+**Stale timer detection on resume (v0.2.7):** When the agent resumes a RUNNING timer from SQLite (e.g., after reboot), it checks the gap between now and `last_tick_at` (persisted every 60s while the timer runs). If the gap exceeds the idle threshold, the timer is auto-stopped with `durationSec` reflecting actual work time up to the last known activity, not including the reboot/downtime gap.
 
 ### System tray: Electron's built-in `Tray` class
 
@@ -303,7 +307,7 @@ The VA manually starts and stops the timer. This creates several legal advantage
 
 ### MVP privacy checklist
 
-Build these five features into the MVP: a **green/gray tray icon** distinguishing tracking-active from tracking-off states, a **desktop notification on each screenshot capture** (like Hubstaff), a **VA-facing dashboard** where they can view their own screenshots and time entries, a **screenshot deletion capability** within a 24-hour window for accidental captures of personal content, and **zero data collection when the timer is off**—enforce this with a clear code path that disables all polling, capture, and reporting when `isTracking === false`.
+Build these features into the MVP: a **green/gray tray icon** distinguishing tracking-active from tracking-off states, a **VA-facing dashboard** where they can view their own screenshots and time entries, a **screenshot deletion capability** within a 24-hour window for accidental captures of personal content, and **zero data collection when the timer is off**—enforce this with a clear code path that disables all polling, capture, and reporting when `isTracking === false`. (Note: screenshot desktop notifications were originally included but removed in v0.2.6 — screenshots are now captured silently.)
 
 Do not log keystrokes, access the webcam, capture clipboard contents, or run any monitoring silently. These practices build trust, reduce legal risk, and match the industry standard set by Hubstaff's "transparency, access, control" framework.
 

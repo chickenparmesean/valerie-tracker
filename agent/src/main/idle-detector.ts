@@ -1,11 +1,13 @@
 import { powerMonitor, BrowserWindow } from 'electron';
 import { getTimerState, stopTimer } from './timer';
 import { config } from './config';
+import { getTrackerSettings } from './tracker-config';
 
 let idleInterval: ReturnType<typeof setInterval> | null = null;
 let mainWindow: BrowserWindow | null = null;
 let idleSince: number | null = null;
 let isIdle = false;
+let autoStopTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export function setIdleWindow(win: BrowserWindow): void {
   mainWindow = win;
@@ -52,10 +54,27 @@ function handleIdleDetected(): void {
   mainWindow?.webContents.send('idle:prompt', {
     idleMinutes: Math.max(idleMinutes, Math.floor(config.defaultIdleThresholdSec / 60)),
   });
+
+  // Start auto-stop timeout — if the idle prompt goes unanswered, auto-stop the timer
+  const settings = getTrackerSettings();
+  const autoStopMin = settings?.autoStopIdleMin ?? 15;
+  const autoStopMs = autoStopMin * 60 * 1000;
+
+  clearAutoStopTimeout();
+  autoStopTimeout = setTimeout(() => {
+    if (!isIdle) return;
+    console.log(`[Idle] Idle prompt unanswered for ${autoStopMin} minutes — auto-stopping timer and discarding idle time`);
+    isIdle = false;
+    idleSince = null;
+    autoStopTimeout = null;
+    stopTimer();
+    mainWindow?.webContents.send('idle:dismissed');
+  }, autoStopMs);
 }
 
 export function handleIdleResponse(choice: 'keep' | 'discard-resume' | 'discard-stop'): void {
   isIdle = false;
+  clearAutoStopTimeout();
 
   switch (choice) {
     case 'keep':
@@ -73,11 +92,19 @@ export function handleIdleResponse(choice: 'keep' | 'discard-resume' | 'discard-
   idleSince = null;
 }
 
+function clearAutoStopTimeout(): void {
+  if (autoStopTimeout) {
+    clearTimeout(autoStopTimeout);
+    autoStopTimeout = null;
+  }
+}
+
 export function stopIdleDetection(): void {
   if (idleInterval) {
     clearInterval(idleInterval);
     idleInterval = null;
   }
+  clearAutoStopTimeout();
   isIdle = false;
   idleSince = null;
   console.log('[Idle] Stopped');

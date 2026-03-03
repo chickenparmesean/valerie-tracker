@@ -10,6 +10,7 @@ interface TrackerConfigFile {
   vaId: string;
   screenshotFreq?: number;
   idleTimeoutMin?: number;
+  autoStopIdleMin?: number;
   blurScreenshots?: boolean;
   trackApps?: boolean;
   trackUrls?: boolean;
@@ -20,6 +21,7 @@ export interface TrackerSettings {
   vaId: string;
   screenshotFreq: number;
   idleTimeoutMin: number;
+  autoStopIdleMin: number;
   blurScreenshots: boolean;
   trackApps: boolean;
   trackUrls: boolean;
@@ -318,6 +320,7 @@ async function fetchServerConfig(
     return {
       screenshotFreq: data.screenshotFreq,
       idleTimeoutMin: data.idleTimeoutMin,
+      autoStopIdleMin: data.autoStopIdleMin,
       blurScreenshots: data.blurScreenshots,
       trackApps: data.trackApps,
       trackUrls: data.trackUrls,
@@ -334,6 +337,7 @@ function getDefaultSettings(): TrackerSettings {
     vaId: '',
     screenshotFreq: 1,
     idleTimeoutMin: 5,
+    autoStopIdleMin: 15,
     blurScreenshots: false,
     trackApps: true,
     trackUrls: true,
@@ -345,6 +349,7 @@ function buildSettingsFromLocal(localConfig: TrackerConfigFile): TrackerSettings
     vaId: localConfig.vaId ?? '',
     screenshotFreq: localConfig.screenshotFreq ?? 1,
     idleTimeoutMin: localConfig.idleTimeoutMin ?? 5,
+    autoStopIdleMin: localConfig.autoStopIdleMin ?? 15,
     blurScreenshots: localConfig.blurScreenshots ?? false,
     trackApps: localConfig.trackApps ?? true,
     trackUrls: localConfig.trackUrls ?? true,
@@ -359,6 +364,7 @@ function mergeSettings(
     vaId: local.vaId,
     screenshotFreq: server.screenshotFreq ?? local.screenshotFreq,
     idleTimeoutMin: server.idleTimeoutMin ?? local.idleTimeoutMin,
+    autoStopIdleMin: server.autoStopIdleMin ?? local.autoStopIdleMin,
     blurScreenshots: server.blurScreenshots ?? local.blurScreenshots,
     trackApps: server.trackApps ?? local.trackApps,
     trackUrls: server.trackUrls ?? local.trackUrls,
