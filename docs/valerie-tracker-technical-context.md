@@ -1,7 +1,7 @@
 # Valerie Tracker -- Technical Context
 
 > Comprehensive reference for anyone (human or AI) integrating the Valerie Agent into va-platform.
-> Based on actual source code as of v0.3.1, branch: staging.
+> Based on actual source code as of v0.3.5, branch: staging.
 
 ---
 
@@ -352,9 +352,8 @@ CREATE TABLE active_time_entry (
 - **When**: MainScreen polls today's total every 30 seconds
 - **Headers**: `Authorization: Bearer vt_...`
 - **Response 200**: Array of time entry objects with `durationSec` field. Agent sums all `durationSec` values and adds elapsed seconds for any currently RUNNING entry.
-- **Response 404**: Endpoint not yet built on va-platform. Agent falls back to summing local SQLite time entries from the sync outbox.
-
-> **Note**: The agent calls `GET /api/tracker/time-entries?date=YYYY-MM-DD` to display today's total tracked time. This endpoint currently returns 404 on va-platform (not yet built). The agent falls back to summing local SQLite time entries when this happens.
+- **Response 200**: Returns `{ entries: [{ id, idempotencyKey, startedAt, stoppedAt, durationSec, status, projectId, taskId }] }`. Built on va-platform as of 2026-03-03.
+- **Response 404**: Agent falls back to summing local SQLite time entries from the sync outbox (legacy fallback, should no longer occur).
 
 ---
 
@@ -559,7 +558,7 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 |--------|---------|
 | `url-bridge.ts` | Localhost HTTP server (127.0.0.1:19876) for Chrome extension communication. Uses Node.js built-in `http` module -- no new npm dependencies (v0.3.0). |
 | `chrome-extension/` | Manifest V3 Chrome extension (background.js + manifest.json). Plain JavaScript, no npm dependencies, no build step (bundled as extraResource). |
-| `build/pack-extension.js` | Packs chrome-extension/ into CRX2 binary using Node.js built-in `crypto` module + PowerShell Compress-Archive. No npm dependencies. |
+| `build/pack-extension.js` | Packs chrome-extension/ into CRX3 binary by shelling out to `chrome.exe --pack-extension`. Build machine must have Chrome installed. Runs automatically before electron-builder (v0.3.2). No npm dependencies. |
 | `build/generate-extension-key.js` | One-time RSA key generation for CRX signing. Node.js built-in `crypto` module. No npm dependencies. |
 
 ### Key Non-Native Dependencies
@@ -600,7 +599,7 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 
 8. **activeTitle not populated** -- WindowSample's `activeTitle` field in screenshot metadata is always empty string (`''`).
 
-9. **URL extraction requires Chrome extension (v0.3.0)** -- Full URL tracking is implemented via a Manifest V3 Chrome extension that POSTs the active tab URL to the agent's localhost HTTP bridge. Requirements: (1) the Chrome extension must be installed (auto-installed via CRX registry keys or manually loaded unpacked), (2) Chrome must be the active foreground app, (3) port 19876 must be free on localhost, (4) `trackUrls` must be true in config. If any requirement is not met, the `url` field on window samples is null (graceful degradation). The extension is invisible to the VA. CRX registry-based auto-install on WorkSpaces needs verification.
+9. **URL extraction requires Chrome extension (v0.3.0)** -- Full URL tracking is implemented via a Manifest V3 Chrome extension that POSTs the active tab URL to the agent's localhost HTTP bridge. Requirements: (1) the Chrome extension must be installed (auto-installed via enterprise force-install policy from v0.3.5, or manually loaded unpacked), (2) Chrome must be the active foreground app, (3) port 19876 must be free on localhost, (4) `trackUrls` must be true in config. If any requirement is not met, the `url` field on window samples is null (graceful degradation). The extension is invisible to the VA. Force-install verified working on WorkSpace (2026-02-27).
 
 10. **Debug logging in all engine modules** -- Console.log statements present in all engine modules (activity, window tracker, screenshot, sync, timer, IPC). Should be gated behind a `--verbose` flag before production release.
 
@@ -621,7 +620,11 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 - **Chrome extension URL tracking (v0.3.0)** -- Manifest V3 extension tracks active tab URL, POSTs to localhost HTTP bridge (127.0.0.1:19876). Window tracker attaches URL to Chrome window samples. NSIS installer bundles extension and writes Chrome registry keys. Gated behind `trackUrls` config flag.
 - **CORS headers on URL bridge (v0.3.1)** -- Access-Control-Allow-Origin/Methods/Headers on all responses + OPTIONS preflight handler. Fixes extension fetch() being blocked.
 - **App display name fix (v0.3.1)** -- package.json description shortened to "Valerie Agent" (was leaking into Task Manager and dashboard as display name).
-- **CRX extension packaging (v0.3.1)** -- Persistent RSA signing key (extension.pem). Chrome extension packed as CRX2 binary via build/pack-extension.js. Registry install now points to .crx file. Extension ID changed to `lpdlfbkigloncemklhgcclimjfbglfkk`. Old registry keys cleaned up on install/uninstall.
+- **CRX extension packaging (v0.3.1)** -- Persistent RSA signing key (extension.pem). Chrome extension packed as CRX binary via build/pack-extension.js. Extension ID changed to `lpdlfbkigloncemklhgcclimjfbglfkk`. Old registry keys cleaned up on install/uninstall.
+- **CRX build pipeline fix (v0.3.2)** -- pack-extension.js now runs automatically before electron-builder in both build:agent and publish:agent scripts. Previously required manual CRX generation.
+- **CRX2 to CRX3 format fix (v0.3.3)** -- Chrome 145 rejects CRX2 with CRX_HEADER_INVALID. pack-extension.js rewritten to use `chrome.exe --pack-extension` which always outputs CRX3. Same PEM key, same extension ID.
+- **URL debug logging (v0.3.4)** -- url-bridge.ts logs incoming POSTs, cache updates, and getLastUrl() results with age. window-tracker.ts logs URL lookup and attachment status for Chrome samples.
+- **Enterprise force-install policy (v0.3.5)** -- Chrome 145 blocks sideloaded CRX extensions with "can't verify" error. Switched to ExtensionInstallForcelist policy. NSIS installer writes update.xml manifest to C:\ProgramData\ValerieAgent\ and sets HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist. Old CRX registry keys (HKLM\SOFTWARE\Google\Chrome\Extensions\) removed. Reboot persistence verified on WorkSpace.
 
 ---
 
@@ -662,7 +665,7 @@ All routes require `Authorization: Bearer vt_...` header. Auth middleware: `web/
 | POST | `/api/tracker/projects` | Create project. Body: `{ name, description?, requireTask?, color? }`. Response 201. |
 | POST | `/api/tracker/projects/[id]/tasks` | Create task. Body: `{ title, description? }`. Auto-increments sortOrder. Response 201. |
 | PATCH | `/api/tasks/[id]` | Update task. Body: `{ title?, status?, description? }`. Verifies org ownership. |
-| GET | `/api/tracker/time-entries` | Fetch today's time entries for total display. Params: `date` (YYYY-MM-DD). Called every 30s while MainScreen is mounted. Currently returns 404 on va-platform (not yet built); agent falls back to local SQLite. |
+| GET | `/api/tracker/time-entries` | Fetch today's time entries for total display. Params: `date` (YYYY-MM-DD). Called every 30s while MainScreen is mounted. Returns `{ entries: [{ id, idempotencyKey, startedAt, stoppedAt, durationSec, status, projectId, taskId }] }`. Built on va-platform 2026-03-03. |
 
 ---
 
@@ -964,11 +967,12 @@ Captures the full URL of the active Chrome tab and delivers it to the Electron a
 |----------|------|-------------|
 | Extension source | `agent/chrome-extension/manifest.json` + `background.js` | Manifest V3 extension. Committed to repo. |
 | RSA signing key | `agent/build/extension.pem` | 2048-bit RSA private key for CRX signing. Committed for reproducible builds. |
-| CRX build script | `agent/build/pack-extension.js` | Packs chrome-extension/ into CRX2 binary. Uses Node.js crypto + PowerShell zip. No npm deps. |
+| CRX build script | `agent/build/pack-extension.js` | Packs chrome-extension/ into CRX3 binary via `chrome.exe --pack-extension`. No npm deps. Build machine needs Chrome. |
 | Key generator | `agent/build/generate-extension-key.js` | One-time script (already run). Generates extension.pem + computes extension ID. |
 | CRX output | `agent/build/valerie-url-bridge.crx` | Build artifact, not committed. Generated by pack-extension.js before electron-builder runs. |
 | Installed (unpacked) | `C:\ProgramData\ValerieAgent\chrome-extension\` | Copied by NSIS installer. For Load Unpacked debugging. |
-| Installed (CRX) | `C:\ProgramData\ValerieAgent\valerie-url-bridge.crx` | Copied by NSIS installer. Used by Chrome registry auto-install. |
+| Installed (CRX) | `C:\ProgramData\ValerieAgent\valerie-url-bridge.crx` | Copied by NSIS installer. Referenced by update.xml for force-install policy. |
+| Update manifest | `C:\ProgramData\ValerieAgent\update.xml` | gupdate-format manifest pointing to local CRX file. Written by NSIS installer (v0.3.5). |
 | Agent bridge module | `agent/src/main/url-bridge.ts` | Node.js HTTP server on 127.0.0.1:19876. Receives URLs from extension. |
 
 ### Extension Details
@@ -1020,13 +1024,12 @@ The extension filters these URL prefixes to null before POSTing:
 The NSIS installer writes Chrome external extension registry keys for automatic installation:
 
 ```
-HKLM\SOFTWARE\WOW6432Node\Google\Chrome\Extensions\lpdlfbkigloncemklhgcclimjfbglfkk
-  path = "C:\ProgramData\ValerieAgent\valerie-url-bridge.crx"
-  version = "1.0.0"
+(v0.3.5 -- enterprise force-install policy, replaces CRX registry approach from v0.3.1-v0.3.4)
 
-HKLM\SOFTWARE\Google\Chrome\Extensions\lpdlfbkigloncemklhgcclimjfbglfkk
-  path = "C:\ProgramData\ValerieAgent\valerie-url-bridge.crx"
-  version = "1.0.0"
+HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist
+  1 = "lpdlfbkigloncemklhgcclimjfbglfkk;file:///C:/ProgramData/ValerieAgent/update.xml"
+
+Old CRX registry keys (HKLM\SOFTWARE\Google\Chrome\Extensions\) cleaned up on install.
 ```
 
 Both WOW6432Node (64-bit Chrome) and direct path (32-bit fallback) are written. On uninstall, both new and old (pdnlbaclbmfbipieaeknjkopdcafeepf) registry keys are cleaned up.
@@ -1050,9 +1053,9 @@ An explicit `OPTIONS` preflight handler returns 204. Without these headers, Chro
 ### WorkSpace Persistence
 
 - **Extension files**: Stored in `C:\ProgramData\ValerieAgent\` (C: drive, system volume). Survives WorkSpace image capture.
-- **CRX file**: Same location. Survives image capture.
-- **Registry keys**: Written to HKLM (machine-wide). Survives image capture.
-- **Golden image deployment**: Install the agent on a fresh WorkSpace, verify Chrome loads the extension, then capture the image. All new WorkSpaces from this bundle will have the extension auto-installed.
+- **CRX file + update.xml**: Same location. Survives image capture.
+- **Force-install policy**: Written to `HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist` (machine-wide). Survives image capture.
+- **Golden image deployment**: Install the agent on a fresh WorkSpace, verify Chrome loads the extension (chrome://extensions shows it as force-installed by enterprise policy), then capture the image. All new WorkSpaces from this bundle will have the extension auto-installed and cannot be disabled by the user.
 
 ### Config Gating
 
