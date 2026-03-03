@@ -75,6 +75,14 @@ async function syncBatch(authHeaders: Record<string, string>): Promise<void> {
   const ss = (payload.screenshots as unknown[]).length;
   console.log('[Sync] Found', items.length, 'pending items (timeEntries:', te, 'snapshots:', as, 'windows:', ws, 'screenshots:', ss, ')');
 
+  // Log first window sample pageTitle for diagnostics
+  if (ws > 0) {
+    const firstSample = (payload.windowSamples as Array<{ pageTitle?: string | null }>)[0];
+    if (firstSample.pageTitle) {
+      console.log('[Sync] Window sample includes pageTitle:', JSON.stringify(firstSample.pageTitle));
+    }
+  }
+
   const url = `${config.apiBaseUrl}/api/tracker/sync`;
   console.log('[Sync] POSTing to', url, '...');
 
