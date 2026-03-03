@@ -34,6 +34,7 @@ let state: TimerState = {
 let tickInterval: ReturnType<typeof setInterval> | null = null;
 let mainWindow: BrowserWindow | null = null;
 let tickCount = 0;
+let currentNote: string | null = null;
 
 export function setMainWindow(win: BrowserWindow): void {
   mainWindow = win;
@@ -41,6 +42,11 @@ export function setMainWindow(win: BrowserWindow): void {
 
 export function getTimerState(): TimerState {
   return { ...state };
+}
+
+export function setTimerNote(note: string): void {
+  currentNote = note;
+  console.log('[Timer] Note set:', note);
 }
 
 export function startTimer(projectId: string, taskId?: string): void {
@@ -120,10 +126,12 @@ export function stopTimer(): void {
       status: 'STOPPED',
       projectId: state.projectId,
       taskId: state.taskId,
+      note: currentNote,
     },
     state.idempotencyKey!
   );
 
+  currentNote = null;
   clearActiveTimeEntry();
 
   if (tickInterval) {
@@ -255,6 +263,7 @@ export function queueTimeEntrySync(): void {
       status: 'RUNNING',
       projectId: state.projectId,
       taskId: state.taskId,
+      note: currentNote,
     },
     state.idempotencyKey
   );

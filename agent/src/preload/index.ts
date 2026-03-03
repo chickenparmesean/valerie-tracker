@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('timer:start', projectId, taskId),
     stop: () => ipcRenderer.invoke('timer:stop'),
     getStatus: () => ipcRenderer.invoke('timer:status'),
+    setNote: (note: string) =>
+      ipcRenderer.invoke('timer:setNote', note) as Promise<{ success: boolean }>,
   },
   projects: {
     list: () => ipcRenderer.invoke('projects:list'),

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { signIn, signOut, isAuthenticated, getAuthHeaders } from './auth';
-import { startTimer, stopTimer, getTimerState } from './timer';
+import { startTimer, stopTimer, getTimerState, setTimerNote } from './timer';
 import { handleIdleResponse } from './idle-detector';
 import { config, isDevMode } from './config';
 import { initTrackerConfig, getTrackerError, isTrackerReady } from './tracker-config';
@@ -39,6 +39,11 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('timer:status', () => {
     return getTimerState();
+  });
+
+  ipcMain.handle('timer:setNote', async (_event, note: string) => {
+    setTimerNote(note);
+    return { success: true };
   });
 
   // Projects — fetch from API

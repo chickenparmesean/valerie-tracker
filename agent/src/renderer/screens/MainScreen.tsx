@@ -29,6 +29,7 @@ export default function MainScreen({ onLogout }: Props) {
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [activeTask, setActiveTask] = useState<string | null>(null);
   const [note, setNote] = useState('');
+  const [noteSaved, setNoteSaved] = useState(false);
   const [todayTotalSec, setTodayTotalSec] = useState<number | null>(null);
   const [addingTaskForProject, setAddingTaskForProject] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -127,6 +128,15 @@ export default function MainScreen({ onLogout }: Props) {
   const handleLogout = async () => {
     await window.electronAPI.auth.logout();
     onLogout();
+  };
+
+  const handleNoteSubmit = async () => {
+    const trimmed = note.trim();
+    if (!trimmed) return;
+    await window.electronAPI.timer.setNote(trimmed);
+    setNote('');
+    setNoteSaved(true);
+    setTimeout(() => setNoteSaved(false), 2000);
   };
 
   const formatTime = (sec: number): string => {
@@ -323,15 +333,31 @@ export default function MainScreen({ onLogout }: Props) {
       </div>
 
       {/* Note */}
-      {timerData.isRunning && (
+      {timerData.isRunning && !noteSaved && (
         <div style={styles.noteSection}>
-          <input
-            type="text"
-            placeholder="+ Add note..."
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            style={styles.noteInput}
-          />
+          <div style={styles.noteRow}>
+            <input
+              type="text"
+              placeholder="+ Add note..."
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleNoteSubmit(); }}
+              style={styles.noteInput}
+            />
+            {note.trim() && (
+              <button onClick={handleNoteSubmit} style={styles.noteSendBtn} title="Submit note">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {timerData.isRunning && noteSaved && (
+        <div style={styles.noteSection}>
+          <span style={styles.noteSavedText}>Note saved</span>
         </div>
       )}
 
@@ -530,14 +556,38 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '10px 16px',
     background: '#FFFFFF',
   },
+  noteRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
   noteInput: {
-    width: '100%',
+    flex: 1,
     padding: '8px 12px',
     fontSize: 13,
     border: '1px solid #E2E1DC',
     borderRadius: 4,
     outline: 'none',
     fontFamily: "'DM Sans', system-ui, sans-serif",
+  },
+  noteSendBtn: {
+    background: '#1A1A2E',
+    border: 'none',
+    borderRadius: 4,
+    width: 32,
+    height: 32,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    color: '#FFFFFF',
+    flexShrink: 0,
+  },
+  noteSavedText: {
+    fontSize: 13,
+    color: '#2D6A4F',
+    fontFamily: "'DM Sans', system-ui, sans-serif",
+    fontWeight: 500,
   },
   todaySection: {
     borderTop: '1px solid #E2E1DC',
