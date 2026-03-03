@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Valerie Agent URL Bridge",
+  "description": "Provides active tab URL to Valerie Agent",
+  "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr7cMQJPM0UCTg0aGQXJ+GhFXcVMUlHoDng07bFXGEjLihRsGEBxVANKXqWEFDBbKOFMQVbILTPBbB8RQHsBQ3c1yCVpGJLMhBh5ZQbR1sDgyJmFt4bYrxOwBT5VKH7Q0DsB3P1AYqL8GCK7Q4jE7HdgfRSYzz4Hx0Rd3Ykq0OFjdJ7IlVkMy7W7qMbwX8HhLp5BHzF4qlHtQN0ImKa0Xc4fgPGbCNx3BflObHxnFkm5O8v0t0YNVY7JA7T8SUQYBIr3wpSe7u+kPJECn3HJPqaVcLzx/Z7OVjHZ/6Lp4rPBROf0wQ3sMC7CJPX7OwOQaPZ6EkwQwj/v0R7P0PjHXGOwIDAQAB",
+  "permissions": ["tabs", "activeTab"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "minimum_chrome_version": "110"
+}
