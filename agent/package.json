@@ -1,8 +1,8 @@
 {
   "name": "valerie-agent",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
-  "description": "Valerie Agent desktop app for time tracking and activity monitoring",
+  "description": "Valerie Agent",
   "author": "HireValerie",
   "main": "dist-main/index.js",
   "scripts": {
