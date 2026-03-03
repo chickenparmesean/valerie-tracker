@@ -1,4 +1,4 @@
-import { Notification, app } from 'electron';
+import { app } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
@@ -89,14 +89,6 @@ async function captureScreenshot(): Promise<void> {
       fileSizeBytes: webpBuffer.length,
       timeEntryId: timerState.idempotencyKey,
     });
-
-    // Show notification
-    new Notification({
-      title: 'Screenshot captured',
-      body: 'Activity screenshot saved',
-      silent: true,
-    }).show();
-    console.log('[Screenshot] Notification shown');
 
     mainWindow?.webContents.send('screenshot:captured');
   } catch (err: any) {

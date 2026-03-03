@@ -164,6 +164,10 @@ async function uploadScreenshots(authHeaders: Record<string, string>): Promise<v
 
       console.log('[Screenshot] Upload complete —', publicUrl);
 
+      // Set storage URLs on metadata before outbox insert
+      metadata.storageUrl = publicUrl;
+      metadata.storagePath = storagePath;
+
       // Queue screenshot metadata for sync
       queueForSync(
         'screenshot',
