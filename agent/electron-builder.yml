@@ -19,6 +19,8 @@ asarUnpack:
 extraResources:
   - from: resources/icon.ico
     to: icon.ico
+  - from: chrome-extension
+    to: chrome-extension
 npmRebuild: true
 electronVersion: "34.5.8"
 win:
@@ -29,6 +31,7 @@ win:
   sign: false
   signAndEditExecutable: true
 nsis:
+  include: build/installer.nsh
   oneClick: false
   perMachine: true
   allowToChangeInstallationDirectory: true
