@@ -22,14 +22,14 @@ for (const envPath of envPaths) {
   if (!result.error) break;
 }
 
-import { app, BrowserWindow, Menu } from 'electron';
+import { app, BrowserWindow, dialog, Menu } from 'electron';
 import { isDevMode } from './config';
 import { initDatabase } from './database';
 import { initAuth, restoreSession, startAutoRefresh } from './auth';
 import { initTrackerConfig } from './tracker-config';
 import { registerIpcHandlers } from './ipc';
 import { createTray, destroyTray } from './tray';
-import { setMainWindow, resumeTimer } from './timer';
+import { setMainWindow, resumeTimer, getTimerState, stopTimer } from './timer';
 import { setScreenshotWindow, startScreenshotSchedule, stopScreenshotSchedule } from './screenshot';
 import { startActivityDetection, stopActivityDetection } from './activity';
 import { startWindowTracking, stopWindowTracking } from './window-tracker';
@@ -163,10 +163,30 @@ if (!gotTheLock) {
       }
     });
 
-    // Hide to tray on close
-    mainWindow.on('close', (event) => {
-      if (!isQuitting) {
-        event.preventDefault();
+    // Close behavior: warn if timer running, otherwise minimize to tray
+    mainWindow.on('close', async (event) => {
+      if (isQuitting) return;
+
+      event.preventDefault();
+
+      const timerState = getTimerState();
+      if (timerState.isRunning) {
+        const { response } = await dialog.showMessageBox(mainWindow!, {
+          type: 'warning',
+          title: 'Stop tracking?',
+          message:
+            'Closing Valerie Agent will stop your timer and end the current work session. Any time tracked so far will be saved.',
+          buttons: ['Keep Working', 'Stop & Close'],
+          defaultId: 0,
+          cancelId: 0,
+        });
+
+        if (response === 1) {
+          stopTimer();
+          app.quit();
+        }
+        // response === 0: do nothing — preventDefault already called
+      } else {
         mainWindow?.hide();
       }
     });
