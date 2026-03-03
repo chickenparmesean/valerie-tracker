@@ -2,12 +2,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { queueForSync } from './database';
 import { getTimerState } from './timer';
 import { config } from './config';
+import { getLastUrl } from './url-bridge';
+import { getTrackerSettings } from './tracker-config';
 
 interface WindowState {
   appName: string;
   windowTitle: string;
   processPath: string;
   pageTitle: string | null;
+  url: string | null;
   startedAt: number;
   durationSec: number;
 }
@@ -80,12 +83,18 @@ export function startWindowTracking(): void {
         lastLoggedTitle = pageTitle;
       }
 
+      // URL tracking: attach Chrome URL if trackUrls enabled and app is Chrome
+      const settings = getTrackerSettings();
+      const isChrome = appName.toLowerCase().includes('chrome');
+      const url = (isChrome && settings?.trackUrls) ? getLastUrl() : null;
+
       if (!currentWindow) {
         currentWindow = {
           appName,
           windowTitle,
           processPath,
           pageTitle,
+          url,
           startedAt: Date.now(),
           durationSec: 0,
         };
@@ -99,6 +108,7 @@ export function startWindowTracking(): void {
         );
         currentWindow.windowTitle = windowTitle;
         currentWindow.pageTitle = pageTitle;
+        currentWindow.url = url;
       } else {
         // Different app — finalize previous
         const prevApp = currentWindow.appName;
@@ -115,6 +125,7 @@ export function startWindowTracking(): void {
           windowTitle,
           processPath,
           pageTitle,
+          url,
           startedAt: Date.now(),
           durationSec: 0,
         };
@@ -157,6 +168,7 @@ function flushWindowSamples(): void {
         windowTitle: sample.windowTitle,
         processPath: sample.processPath,
         pageTitle: sample.pageTitle,
+        url: sample.url,
         durationSec: sample.durationSec,
         timeEntryId: timerState.idempotencyKey,
       },

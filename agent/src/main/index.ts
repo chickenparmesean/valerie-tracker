@@ -33,6 +33,7 @@ import { setMainWindow, resumeTimer, getTimerState, stopTimer } from './timer';
 import { setScreenshotWindow, startScreenshotSchedule, stopScreenshotSchedule } from './screenshot';
 import { startActivityDetection, stopActivityDetection } from './activity';
 import { startWindowTracking, stopWindowTracking } from './window-tracker';
+import { startUrlBridge, stopUrlBridge } from './url-bridge';
 import { setIdleWindow, startIdleDetection, stopIdleDetection } from './idle-detector';
 import { startSyncEngine, stopSyncEngine } from './sync';
 import { enableAutoLaunch } from './auto-launch';
@@ -59,6 +60,14 @@ function startEngines(): void {
     console.log('[Engine] ✓ Activity detector started');
   } catch (err: any) {
     console.error(`[Engine] ✗ Activity detector FAILED: ${err.message}`, err.stack);
+  }
+
+  try {
+    console.log('[Engine] Starting URL bridge...');
+    startUrlBridge();
+    console.log('[Engine] ✓ URL bridge started');
+  } catch (err: any) {
+    console.error(`[Engine] ✗ URL bridge FAILED: ${err.message}`, err.stack);
   }
 
   try {
@@ -277,6 +286,7 @@ if (!gotTheLock) {
     isQuitting = true;
     console.log('[App] Shutting down — stopping all engines');
     try { stopActivityDetection(); } catch (e) {}
+    try { stopUrlBridge(); } catch (e) {}
     try { stopWindowTracking(); } catch (e) {}
     try { stopScreenshotSchedule(); } catch (e) {}
     try { stopIdleDetection(); } catch (e) {}

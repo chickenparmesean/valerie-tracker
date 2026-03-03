@@ -36,6 +36,7 @@ export interface SyncWindowSample {
   windowTitle?: string;
   processPath?: string;
   pageTitle?: string | null;
+  url?: string | null;
   durationSec: number;
   timeEntryId: string;
 }
