@@ -1,7 +1,7 @@
 # Valerie Tracker -- Technical Context
 
 > Comprehensive reference for anyone (human or AI) integrating the Valerie Agent into va-platform.
-> Based on actual source code as of v0.2.5, branch: staging.
+> Based on actual source code as of v0.2.7, branch: staging.
 
 ---
 
@@ -79,6 +79,7 @@ All renderer-to-main communication goes through the preload bridge. Channels:
 | Main -> Renderer | `timer:update` | send | Every-second timer tick |
 | Main -> Renderer | `timer:stopped` | send | Timer was stopped |
 | Main -> Renderer | `idle:prompt` | send | Idle threshold exceeded |
+| Main -> Renderer | `idle:dismissed` | send | Idle prompt auto-dismissed after autoStopIdleMin timeout (v0.2.7) |
 | Main -> Renderer | `screenshot:captured` | send | Screenshot was taken |
 | Main -> Renderer | `config:ready` | send | Config loaded successfully |
 | Main -> Renderer | `config:error` | send | Config load failed |
@@ -109,7 +110,7 @@ All renderer-to-main communication goes through the preload bridge. Channels:
     taskId?: string | null;    // cuid from server, null if taskless
   }
   ```
-- **Logic**: On start, generates UUID, persists to SQLite `active_time_entry` table (single-row, id=1). Immediately queues a RUNNING sync. Every 1s, recalculates `elapsedSec` and emits `timer:update` to renderer. On stop, queues a STOPPED sync with final `durationSec`, `activeSec`, `idleSec`, and `stoppedAt`. Clears `active_time_entry`. On app restart, `resumeTimer()` reads `active_time_entry` and resumes if status is RUNNING.
+- **Logic**: On start, generates UUID, persists to SQLite `active_time_entry` table (single-row, id=1). Immediately queues a RUNNING sync. Every 1s, recalculates `elapsedSec` and emits `timer:update` to renderer. Every 60s, writes `last_tick_at` timestamp to `active_time_entry` for stale detection. On stop, queues a STOPPED sync with final `durationSec`, `activeSec`, `idleSec`, and `stoppedAt`. Clears `active_time_entry`. On app restart, `resumeTimer()` reads `active_time_entry` and checks if status is RUNNING. If the gap between now and `last_tick_at` (or `startedAt` if no tick recorded) exceeds the idle threshold, the timer is auto-stopped with `durationSec` reflecting actual work time up to the last known activity -- not including reboot/downtime gap. If the gap is within threshold, the timer resumes normally (v0.2.7).
 
 ### ActivitySnapshot
 
@@ -149,7 +150,7 @@ All renderer-to-main communication goes through the preload bridge. Channels:
     storagePath: string;       // bucket path
   }
   ```
-- **Logic**: Capture PNG via `screenshot-desktop`, compress to WebP quality 75 via `sharp`, save to `%APPDATA%/Valerie Agent/screenshots/{uuid}.webp`. Queue in `screenshot_queue` SQLite table. Sync engine uploads via presigned URL, then queues metadata for `/api/tracker/sync`. After successful upload, deletes local file. Shows desktop notification: "Screenshot captured".
+- **Logic**: Capture PNG via `screenshot-desktop`, compress to WebP quality 75 via `sharp`, save to `%APPDATA%/Valerie Agent/screenshots/{uuid}.webp`. Queue in `screenshot_queue` SQLite table. Sync engine uploads via presigned URL, then queues metadata (with `storageUrl` and `storagePath` set before outbox insert, fixed in v0.2.6) for `/api/tracker/sync`. After successful upload, deletes local file. Screenshots are captured silently (desktop notification removed in v0.2.6).
 - **Compression**: WebP quality 75, typical size 73-96 KB per 1080p screenshot
 - **Single monitor only**: `screenshot-desktop` captures primary monitor by default
 
@@ -214,7 +215,8 @@ CREATE TABLE active_time_entry (
   project_id TEXT NOT NULL,
   task_id TEXT,
   started_at TEXT NOT NULL,
-  status TEXT DEFAULT 'RUNNING'
+  status TEXT DEFAULT 'RUNNING',
+  last_tick_at TEXT              -- updated every 60s, used for stale timer detection on resume (v0.2.7)
 );
 ```
 
@@ -352,6 +354,7 @@ CREATE TABLE active_time_entry (
   "vaId": "test-va-001",
   "screenshotFreq": 1,
   "idleTimeoutMin": 5,
+  "autoStopIdleMin": 15,
   "blurScreenshots": false,
   "trackApps": true,
   "trackUrls": true
@@ -365,6 +368,7 @@ CREATE TABLE active_time_entry (
 | vaId | string | No | `''` | Informational VA identifier |
 | screenshotFreq | number | No | 1 | Screenshots per 10-min interval |
 | idleTimeoutMin | number | No | 5 | Minutes before idle dialog |
+| autoStopIdleMin | number | No | 15 | Minutes before unanswered idle prompt auto-stops timer (v0.2.7) |
 | blurScreenshots | boolean | No | false | Whether to blur captures |
 | trackApps | boolean | No | true | Track foreground app names |
 | trackUrls | boolean | No | true | Track browser URLs |
@@ -460,6 +464,7 @@ The server returns org-level settings via `GET /api/tracker/config`. These overr
 | vaId | config.json only | Local only |
 | screenshotFreq | config.json + server | Server wins |
 | idleTimeoutMin | config.json + server | Server wins |
+| autoStopIdleMin | config.json + server | Server wins |
 | blurScreenshots | config.json + server | Server wins |
 | trackApps | config.json + server | Server wins |
 | trackUrls | config.json + server | Server wins |
@@ -501,6 +506,7 @@ The server returns org-level settings via `GET /api/tracker/config`. These overr
 **IdleDialog** (`agent/src/renderer/screens/IdleDialog.tsx`):
 - Modal overlay shown when idle threshold exceeded
 - Three buttons: "Keep Time & Resume", "Discard Idle Time & Resume", "Discard & Stop Timer"
+- If unanswered for `autoStopIdleMin` minutes (default 15), the dialog is auto-dismissed, timer is stopped, and idle time is discarded (v0.2.7)
 
 ### System Tray Menu Items
 
@@ -544,7 +550,7 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 
 ## 10. Known Limitations
 
-1. **Auto-update unreliable** -- electron-updater detects and downloads updates from GitHub Releases, but NSIS install-on-restart does not consistently work. Current deployment method: download latest installer (Valerie Agent Setup 0.2.5.exe) from GitHub Releases and run manually (overwrites previous install).
+1. **Auto-update unreliable** -- electron-updater detects and downloads updates from GitHub Releases, but NSIS install-on-restart does not consistently work. Current deployment method: download latest installer (Valerie Agent Setup 0.2.7.exe) from GitHub Releases and run manually (overwrites previous install).
 
 2. **No code signing** -- `sign: false` in electron-builder.yml. `signAndEditExecutable: true` allows rcedit to embed the icon in the .exe without signing. SmartScreen may warn on untrusted machines, but this is not an issue for managed AWS WorkSpaces.
 
@@ -579,6 +585,10 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 - **Chrome page title extraction (v0.2.4)** -- `pageTitle` field derived from Chrome window titles.
 - **Today total display (v0.2.4)** -- MainScreen shows cumulative tracked time for the day.
 - **Project refresh button (v0.2.2)** -- Manual refresh in header.
+- **Screenshot metadata fix (v0.2.6)** -- `storageUrl`/`storagePath` now set on metadata before outbox insert.
+- **Screenshot notification removed (v0.2.6)** -- Screenshots captured silently, no desktop notification.
+- **Stale timer detection on resume (v0.2.7)** -- `last_tick_at` persisted every 60s; on resume, gap check auto-stops stale timers with correct `durationSec`.
+- **Auto-stop on prolonged unanswered idle (v0.2.7)** -- If idle prompt goes unanswered for `autoStopIdleMin` (default 15 min), timer auto-stops and idle time is discarded.
 
 ---
 

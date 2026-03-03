@@ -16,15 +16,15 @@
 |------|------|-------------|
 | `index.ts` | [AUTH] [INTEGRATION] | App entry point. Dual startup (--dev vs normal mode), GPU flags for WorkSpaces, creates window, starts all engines. Single instance lock via app.requestSingleInstanceLock() -- second instance focuses existing window instead of launching duplicate (v0.2.3). Graceful shutdown: before-quit handler calls cleanup on all engine modules -- timer, activity, window tracker, screenshot, idle detector, sync, auto-updater, tray (v0.2.3). |
 | `config.ts` | [AUTH] [INTEGRATION] | Global config constants (intervals, paths, URLs). `isDevMode` flag. Dynamic `apiBaseUrl` getter/setter. DB path migration from old "Valerie Tracker" name. |
-| `tracker-config.ts` | [AUTH] [INTEGRATION] | Reads config.json from ProgramData, safeStorage caching, pings server to validate API key, fetches + merges server config, offline fallback. Core auth module for production mode. |
+| `tracker-config.ts` | [AUTH] [INTEGRATION] | Reads config.json from ProgramData, safeStorage caching, pings server to validate API key, fetches + merges server config, offline fallback. Core auth module for production mode. TrackerSettings includes autoStopIdleMin (default 15) for prolonged idle auto-stop (v0.2.7). |
 | `auth.ts` | [AUTH] [INTEGRATION] | `getAuthHeaders()` -- returns Bearer token for API calls. Dev mode: Supabase JWT. Normal mode: API key from tracker-config. Also handles Supabase signIn/signOut/restoreSession (dev-only). |
 | `database.ts` | [DATA] [SYNC] | SQLite via better-sqlite3. Creates 3 tables (sync_outbox, screenshot_queue, active_time_entry). CRUD for outbox items, screenshots, and timer persistence. |
-| `timer.ts` | [DATA] [TASK] | Timer state machine (start/stop/resume). Generates idempotency keys. Tracks elapsed/active/idle seconds. Queues time entries for sync. Persists to SQLite for crash recovery. |
+| `timer.ts` | [DATA] [TASK] | Timer state machine (start/stop/resume). Generates idempotency keys. Tracks elapsed/active/idle seconds. Queues time entries for sync. Persists to SQLite for crash recovery. Writes last_tick_at to active_time_entry every 60s. On resumeTimer(), detects stale timers by checking gap between now and last_tick_at -- if gap exceeds idle threshold, auto-stops with durationSec reflecting actual work time (v0.2.7). |
 | `activity.ts` | [DATA] | Activity detection via powerMonitor.getSystemIdleTime(). 1s polling, 60s snapshot aggregation. Feeds activityPct to timer and sync outbox. Data collection gated behind timer running state -- skips polls with "[Activity] Skipping -- timer not running" log when timer is not running (v0.2.2). |
 | `window-tracker.ts` | [DATA] | Foreground app tracking via @miniben90/x-win. 3s polling, heartbeat pattern (extends duration for same app). 60s flush to sync outbox. Chrome page title extraction: strips " - Google Chrome" suffix from window titles to derive pageTitle field sent in sync payload alongside appName and windowTitle (v0.2.4). Timer-gated -- skips polls when timer not running (v0.2.2). |
-| `screenshot.ts` | [DATA] | Screenshot capture via screenshot-desktop + sharp WebP compression. Randomized within 10-min windows. Saves locally, queues for upload. Desktop notification on capture. Capture only occurs while timer is running -- skips with log when timer stopped (v0.2.2). |
-| `idle-detector.ts` | [DATA] [UI] | Idle detection via powerMonitor. 30s polling + lock-screen event. Shows idle prompt dialog to renderer when threshold exceeded. |
-| `sync.ts` | [SYNC] [INTEGRATION] | Sync engine. Runs every 60s. Batches unsynced items from SQLite, POSTs to /api/tracker/sync. Uploads screenshots via presigned URLs. Marks items as synced. |
+| `screenshot.ts` | [DATA] | Screenshot capture via screenshot-desktop + sharp WebP compression. Randomized within 10-min windows. Saves locally, queues for upload. Captures silently (notification removed in v0.2.6). Capture only occurs while timer is running -- skips with log when timer stopped (v0.2.2). |
+| `idle-detector.ts` | [DATA] [UI] | Idle detection via powerMonitor. 30s polling + lock-screen event. Shows idle prompt dialog to renderer when threshold exceeded. If idle prompt goes unanswered for autoStopIdleMin (default 15 min, configurable), auto-stops timer and discards idle time (v0.2.7). |
+| `sync.ts` | [SYNC] [INTEGRATION] | Sync engine. Runs every 60s. Batches unsynced items from SQLite, POSTs to /api/tracker/sync. Uploads screenshots via presigned URLs. Marks items as synced. Screenshot metadata now includes storageUrl/storagePath set before outbox insert (v0.2.6). |
 | `tray.ts` | [UI] | System tray icon (green/gray), tooltip with elapsed time, context menu (status, start/stop, open, update check, quit). |
 | `auto-launch.ts` | | Windows Registry Run key for auto-start on login. Writes to HKCU\...\Run. |
 | `auto-updater.ts` | | electron-updater integration. Checks GitHub Releases on startup + every 4h. Downloads silently, installs on quit. Non-fatal error handling. |
@@ -118,7 +118,7 @@
 | `package.json` | | Root workspace config (npm workspaces: web, agent, shared, prisma). |
 | `agent/electron-builder.yml` | [INTEGRATION] | NSIS installer config. perMachine: true, asarUnpack for native modules, GitHub Releases publish. |
 | `agent/resources/icon.ico` | [UI] | Custom woman silhouette logo (256x256). Embedded in .exe via rcedit. Also bundled as extraResource for runtime BrowserWindow icon. Updated v0.1.7. |
-| `agent/package.json` | | Agent workspace: scripts (dev, build, publish), dependencies, version 0.2.5. |
+| `agent/package.json` | | Agent workspace: scripts (dev, build, publish), dependencies, version 0.2.7. |
 
 ---
 
