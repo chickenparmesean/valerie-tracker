@@ -26,9 +26,17 @@
 
   ; --- Chrome enterprise policy: force-install extension ---
   WriteRegStr HKLM "SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist" "1" "lpdlfbkigloncemklhgcclimjfbglfkk;file:///C:/ProgramData/ValerieAgent/update.xml"
+
+  ; --- Auto-launch: machine-wide Run key (persists in golden images for all user profiles) ---
+  WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "ValerieAgent" '"$INSTDIR\Valerie Agent.exe"'
 !macroend
 
 !macro customUnInstall
+  ; --- Remove auto-launch Run key ---
+  DeleteRegValue HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "ValerieAgent"
+  ; --- Also clean up per-user key if it exists ---
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "ValerieAgent"
+
   ; --- Remove Chrome enterprise policy force-install ---
   DeleteRegValue HKLM "SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist" "1"
 
