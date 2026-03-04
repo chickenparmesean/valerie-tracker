@@ -116,7 +116,7 @@ export function registerIpcHandlers(): void {
       const dd = String(today.getDate()).padStart(2, '0');
       const dateStr = `${yyyy}-${mm}-${dd}`;
 
-      const res = await fetch(`${config.apiBaseUrl}/api/tracker/time-entries?date=${dateStr}`, {
+      const res = await fetch(`${config.apiBaseUrl}/api/tracker/time-entries?date=${dateStr}&tzOffset=${new Date().getTimezoneOffset() * -1}`, {
         headers,
       });
 
