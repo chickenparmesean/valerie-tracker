@@ -1,7 +1,8 @@
 # Valerie Tracker — MVP Project Plan
 
-> **Note (2026-03-03):** This is the original build plan. Some sections are now stale:
+> **Note (2026-03-04):** This is the original build plan. Some sections are now stale:
 > - **All 18 integration guide tasks are complete.** WorkSpace testing passed (2026-02-27). Current stable version is v0.3.7. v0.3.6 added tzOffset for timezone-aware today calculation. v0.3.7 fixed auto-launch to use HKLM (machine-wide) for golden image persistence. v0.3.0-v0.3.7 added Chrome extension URL tracking via localhost HTTP bridge, CRX3 packaging, and enterprise force-install policy for Chrome extension deployment. Earlier versions (v0.2.1-v0.2.8) added debug logging, screenshot privacy gating, single instance lock, graceful shutdown, Chrome page title tracking, today total display, close warning dialog, and note input. Agent now syncs to va-platform at staging.hirevalerie.com. See STATUS.md for details.
+> - **Integration is complete (2026-03-04).** Agent syncs exclusively to va-platform. The `web/` standalone API is retired from production but maintained as a reference implementation.
 > - **Auth** has been swapped from Supabase Auth (JWT) to API key auth (`Bearer vt_...`). See INTEGRATION-GUIDE.md for current auth design.
 > - **Web dashboard** (Phase 4) has been removed. Production dashboard lives in va-platform repo. The web/ folder is now a headless API server only.
 > - **API routes** now include `/api/tracker/ping` and `/api/tracker/config` (not in original plan).

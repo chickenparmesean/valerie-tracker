@@ -440,3 +440,44 @@ Log prefixes: [Native], [Engine], [Timer], [Activity], [Window], [Screenshot], [
 - To publish a release: set GH_TOKEN env var (repo scope), run `npm run publish:agent` from agent/
 - Dashboard UI stripped per INTEGRATION-GUIDE.md -- production dashboard lives in va-platform repo
 - Custom icon.ico with woman silhouette logo shipped in v0.1.7, bundled as extraResource in v0.1.8, embedded in .exe via rcedit in v0.2.0
+
+---
+
+### Known Issues / Future Enhancements
+
+**Agent-side (non-blocking):**
+- Agent doesn't auto-refresh project/task list after company edits on va-platform -- VA must click the refresh button or restart the agent
+- DevTools don't open in production builds (Ctrl+Shift+I disabled) -- launch from PowerShell terminal for debug output instead
+- No auto-select of default project/task when only one exists -- VA must manually select
+- URL tracking captures full URLs including query parameters (e.g., LinkedIn authwall tokens) -- future enhancement: truncation or query param stripping for privacy
+
+**Deployment:**
+- `electron-updater` auto-update is unreliable with NSIS -- do NOT rely on it. The only reliable deployment method is golden image rebuild with the updated installer.
+- Workspace-ready email from va-platform fires before confirming SSM registration succeeded -- config.json may not be written yet when VA first logs in
+
+**Infrastructure:**
+- AWS WorkSpaces quota: currently at 4, increase to 10-20 requested for headroom
+
+### Current Golden Image
+
+| Item | Value |
+|------|-------|
+| Image | `valerie-tracker-golden-v7-1` (`wsi-vztj3w7dm`) |
+| Bundle | `valerie-tracker-bundle-v7-1` (`wsb-6ll7pctqb`) |
+| Agent version | v0.3.7 |
+| Status | Live on staging + production |
+
+**Deployment method:** Golden image rebuild is the only reliable deployment path. New agent versions require: build installer -> install on WorkSpace -> verify -> create new image -> create new bundle -> update WorkSpace directory to use new bundle.
+
+### Integration Status
+
+Integration with va-platform is **complete** as of 2026-03-04. The Electron desktop agent syncs exclusively to va-platform at `staging.hirevalerie.com` (staging) and `hirevalerie.com` (production). The standalone test API (`web/` folder) is retired from production but maintained as a reference implementation of the sync contract.
+
+All 18 integration tasks (VT-A through VT-G2) are DONE. Hubstaff was fully removed from va-platform in VT-F (2026-02-28). Valerie Tracker is the sole monitoring system.
+
+**Working sync routes on va-platform:**
+- `POST /api/tracker/sync` -- time entries, activity snapshots, window samples, screenshots
+- `GET /api/tracker/ping` -- API key validation
+- `GET /api/tracker/config` -- org settings
+- `POST /api/tracker/screenshots/presign` -- presigned upload URLs
+- `WindowSample.url` column added, domain stripping on ingest

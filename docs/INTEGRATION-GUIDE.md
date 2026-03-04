@@ -1,5 +1,12 @@
 # Valerie Tracker — Integration Guide
 
+> **Status: COMPLETE (2026-03-04)**
+> All 18 integration tasks (VT-A through VT-G2) are done. Agent v0.3.7 syncs exclusively to va-platform. Hubstaff fully removed (VT-F, 2026-02-28). Valerie Tracker is the sole monitoring system. The standalone test API (`web/`) is retired from production.
+>
+> Golden image: `valerie-tracker-golden-v7-1` (wsi-vztj3w7dm), Bundle: `valerie-tracker-bundle-v7-1` (wsb-6ll7pctqb) -- live on staging + production.
+>
+> Config deploys automatically via AWS SSM RunCommand (`deployTrackerConfig()`). Only `apiKey` and `apiBaseUrl` required.
+
 > **There are two projects. Do not confuse them.**
 >
 > - **THIS PROJECT (valerie-tracker)** — Electron desktop agent + standalone test API. Lives in its own repo. Responsible for building, testing, and packaging the desktop agent.
@@ -315,7 +322,7 @@ Test on a real AWS WorkSpace. This is the only environment that matters.
 | 15 | Fix any native module / compatibility issues found during testing | DONE (2026-02-27) |
 | 16 | Verify screenshot capture + upload end-to-end | DONE (2026-02-27) |
 | 17 | Verify sync engine end-to-end | DONE (2026-02-27) |
-| 18 | Package final working installer ready for golden image | DONE (2026-02-27, updated 2026-03-03) -- v0.3.1 is the current stable installer. Rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9. v0.2.0 added `perMachine: true` for C: drive install on golden images. v0.2.6 fixed screenshot metadata, removed capture notification. v0.2.7 fixed stale timer resume + auto-stop on prolonged idle. v0.2.8 added close warning dialog + note input wiring. v0.3.0 added Chrome extension URL tracking. v0.3.1 added CORS fix, display name fix, CRX packaging. |
+| 18 | Package final working installer ready for golden image | DONE (2026-02-27, updated 2026-03-04) -- v0.3.7 is the current stable installer. Rebranded to "Valerie Agent" in v0.1.7, icon fixes in v0.1.8-v0.1.9. v0.2.0 added `perMachine: true` for C: drive install on golden images. v0.2.6 fixed screenshot metadata, removed capture notification. v0.2.7 fixed stale timer resume + auto-stop on prolonged idle. v0.2.8 added close warning dialog + note input wiring. v0.3.0 added Chrome extension URL tracking. v0.3.1 added CORS fix, display name fix, CRX packaging. |
 
 ### Agent Auth Swap -- COMPLETE (tasks 4, 9-11)
 
@@ -369,7 +376,7 @@ This builds the NSIS installer and uploads it as a GitHub Release with `latest.y
 
 **GH_TOKEN is needed ONLY at publish time.** The agent checks for updates using the public GitHub Releases API -- no token needed at runtime.
 
-**Task 14:** Installed on AWS WorkSpace via NSIS installer. Config.json auth working -- agent reads `C:\ProgramData\ValerieAgent\config.json` (falls back to `C:\ProgramData\ValerieTracker\`), pings Vercel API (`/api/tracker/ping`), fetches server config (`/api/tracker/config`). Auto-launch on reboot confirmed via Registry Run key (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`). All 12 Testing Priority items tested and passing.
+**Task 14:** Installed on AWS WorkSpace via NSIS installer. Config.json auth working -- agent reads `C:\ProgramData\ValerieAgent\config.json` (falls back to `C:\ProgramData\ValerieTracker\`), pings Vercel API (`/api/tracker/ping`), fetches server config (`/api/tracker/config`). Auto-launch on reboot confirmed via Registry Run key (`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run` as of v0.3.7, HKCU fallback). All 12 Testing Priority items tested and passing.
 
 **Task 15:** All native modules work on AWS WorkSpaces without any compatibility issues. No fallbacks needed. Specifically: `screenshot-desktop` captures screenshots correctly, `@miniben90/x-win` detects active windows (Chrome, PowerShell, Explorer, Electron all identified with correct app names and window titles), `powerMonitor.getSystemIdleTime()` returns correct values (Chromium bug #30126 did NOT affect Electron 34.5.8), `better-sqlite3` local SQLite cache working, `sharp` WebP compression working (~73-96KB per screenshot). The `desktop-idle` fallback package was not required.
 
@@ -402,11 +409,11 @@ All 18 integration guide tasks are DONE. The Electron desktop agent has been tes
 
 ---
 
-## Current Integration Status (v0.3.5)
+## Current Integration Status (v0.3.7)
 
 The agent now syncs to va-platform at staging.hirevalerie.com (previously used standalone API at valerie-tracker-web.vercel.app).
 
-### v0.3.5 End-to-End Test Results
+### v0.3.5/v0.3.7 End-to-End Test Results
 
 Full chain verified on AWS WorkSpace:
 - Extension force-installs via enterprise policy, cannot be disabled

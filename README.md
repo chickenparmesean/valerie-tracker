@@ -34,9 +34,11 @@ See STATUS.md for full test results and INTEGRATION-GUIDE.md for the complete ta
 valerie-tracker/
   shared/    -- Shared TypeScript types and enums
   prisma/    -- Database schema (Prisma ORM) + seed script
-  web/       -- Next.js 15 headless API server with 13 routes
+  web/       -- Next.js 15 headless API server with 13 routes (retired from production -- see note below)
   agent/     -- Electron desktop app (Windows)
 ```
+
+> **Note:** The `web/` API server is retired from production. The agent now syncs exclusively to va-platform (`staging.hirevalerie.com` / `hirevalerie.com`). The web/ folder is maintained as a reference implementation of the sync contract (Zod schemas, route signatures, presign flow).
 
 - **Agent** writes to local SQLite first, syncs every 60s via batched POST to `/api/sync`
 - **Screenshots** upload via presigned URLs to Supabase Storage
@@ -311,6 +313,8 @@ Full workflow for shipping a new agent version:
 
 **Auto-update caveat:** Auto-update via electron-updater is currently unreliable with NSIS. The agent detects updates and downloads them, but installation on restart does not consistently work. For now, deploy updates by downloading the latest installer from [GitHub Releases](https://github.com/chickenparmesean/valerie-tracker/releases) and running it manually on the WorkSpace. The NSIS installer overwrites the previous version -- no need to uninstall first.
 
+**WARNING: Auto-update is unreliable. Do NOT rely on electron-updater for production deployments.** The only reliable deployment method is rebuilding the golden image with the new installer. Download the latest installer from GitHub Releases, install on a WorkSpace, and create a new image/bundle.
+
 ## API Reference
 
 All 13 routes require API key Bearer token in the Authorization header: `Authorization: Bearer vt_...`
@@ -407,7 +411,9 @@ Check the Windows Registry for the auto-launch entry. The NSIS installer writes 
 HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
 HKCU\Software\Microsoft\Windows\CurrentVersion\Run (legacy fallback)
 ```
-Look for a "Valerie Agent" entry. If missing, the auto-launch module may not have run on first launch.
+To verify: `reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v ValerieAgent`
+
+If missing from both locations, the auto-launch module may not have run on first launch.
 
 ### Screenshots not uploading
 Verify the "screenshots" bucket exists in your Supabase Storage dashboard (must be private, not public). The agent gets a presigned URL from `/api/screenshots/presign` and uploads directly to Supabase Storage.

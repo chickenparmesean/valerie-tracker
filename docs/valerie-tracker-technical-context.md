@@ -587,7 +587,7 @@ All native modules are listed in `asarUnpack` in `electron-builder.yml` so their
 
 ## 10. Known Limitations
 
-1. **Auto-update unreliable** -- electron-updater detects and downloads updates from GitHub Releases, but NSIS install-on-restart does not consistently work. Current deployment method: download latest installer (Valerie Agent Setup 0.2.8.exe) from GitHub Releases and run manually (overwrites previous install).
+1. **Auto-update unreliable** -- `electron-updater` detects and downloads updates from GitHub Releases, but NSIS install-on-restart does not consistently work. The only reliable deployment method is golden image rebuild with the updated installer. Do not rely on auto-update for production deployments.
 
 2. **No code signing** -- `sign: false` in electron-builder.yml. `signAndEditExecutable: true` allows rcedit to embed the icon in the .exe without signing. SmartScreen may warn on untrusted machines, but this is not an issue for managed AWS WorkSpaces.
 
