@@ -1,7 +1,7 @@
 # Valerie Tracker -- Technical Context
 
 > Comprehensive reference for anyone (human or AI) integrating the Valerie Agent into va-platform.
-> Based on actual source code as of v0.3.5, branch: staging.
+> Based on actual source code as of v0.3.7, branch: staging.
 
 ---
 
@@ -41,12 +41,12 @@ The `before-quit` event handler calls cleanup/stop on all engine modules: activi
    - Full Supabase Auth flow (LoginScreen)
    - `restoreSession()` from safeStorage
    - If restored: `startAutoRefresh()`, `startEngines()`, `resumeTimer()`
-7. `enableAutoLaunch()` -- writes Registry Run key
+7. `enableAutoLaunch()` -- writes HKLM Run key (machine-wide), falls back to HKCU if not elevated (v0.3.7)
 8. `initAutoUpdater()` -- checks GitHub Releases (non-dev only)
 
 ### Auto-Start
 
-The agent registers itself in the Windows Registry at `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` with key `ValerieAgent` pointing to the exe path. This ensures the agent starts on Windows login.
+The agent auto-launch uses a two-tier strategy (v0.3.7). The NSIS installer writes a machine-wide key at `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run` with key `ValerieAgent` pointing to the exe path. This persists across all user profiles in golden images. At runtime, `enableAutoLaunch()` tries HKLM first (requires elevation), falls back to HKCU if not elevated, and cleans up the old HKCU key on successful HKLM write.
 
 ### System Tray vs BrowserWindow
 
